@@ -49,8 +49,20 @@ class LMPC(Node):
     def __init__(self):
         super().__init__('lmpc_node')
         
+        self.create_subscription(Odometry, 'ego_racecar/odom', self.pose_callback, 10)
+        self.drive_publisher = self.create_publisher(AckermannDriveStamped, '/drive', 10)
+
+        self.map_to_car_rotation = None
+        self.map_to_car_translation = None
 
 
+    def pose_callback(self, msg):
+        current_pose = np.array([msg.pose.pose.position.x, msg.pose.pose.position.y])
+        current_heading = R.from_quat([msg.pose.pose.orientation.x, msg.pose.pose.orientation.y, msg.pose.pose.orientation.z, msg.pose.pose.orientation.w])
+        
+
+
+    
 
 def main(args=None):
     rclpy.init(args=args)
