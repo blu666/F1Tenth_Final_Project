@@ -24,14 +24,14 @@ import tf2_ros
 from visualization_msgs.msg import Marker, MarkerArray
 from rclpy.parameter import Parameter, ParameterType
 from sensor_msgs.msg import PointCloud
-from occupancy_grid import CarOccupancyGrid
+from car_params import CarParams
 import track
 
-nx = 6 # dim of state space
+nx = 6 # dim of state space [x, y, yaw, v, omega, slip]
 nu = 2 # dim of control space
 
 @dataclass
-class Sample:
+class SS_Sample:
     x: np.ndarray
     u: np.ndarray
     s: float
@@ -46,7 +46,7 @@ class LMPC(Node):
     def __init__(self):
         super().__init__('lmpc_node')
         
-        self.create_subscription(Odometry, 'ego_racecar/odom', self.odom_callback, 10)
+        self.create_subscription(Odometry, 'ego_racecar/odom', self.pose_callback, 10)
         self.drive_publisher = self.create_publisher(AckermannDriveStamped, '/drive', 10)
 
         self.map_to_car_rotation = None
@@ -135,9 +135,32 @@ class LMPC(Node):
         # line 543: global_to_track
         pass
 
-    def get_linearized_dynamics(self, x, u, use_dyn):
-        # line 566: get_linearized_dynamics
-        pass
+    # def get_linearized_dynamics(self, x, u, use_dyn):
+    #     # line 566: get_linearized_dynamics
+    #     pass
+    def get_linearized_dynamics(self, Ad: np.ndarray,
+                                Bd: np.ndarray,
+                                hd: np.ndarray,
+                                x_op: np.ndarray,
+                                u_op: np.ndarray,
+                                use_dynamics: bool):
+        """
+        
+        """
+        yaw = x_op[2]
+        v = x_op[3]
+        accel = u_op[0]
+        steer = u_op[1]
+        yaw_dot = x_op[4]
+        slip_angle = x_op[5]
+        
+        dynamics = np.zeros(6)
+        h = np.zeros(6)
+        
+        if use_dynamics:
+            g = 9.81
+            rear_val = self.car.l_r - accel * self.car.h_cg
+            front_val = self.car.l_f + accel * self.car.h_cg
 
     def wrap_angle(self, angle, ref_angle):
         # line 688: wrap_angle
