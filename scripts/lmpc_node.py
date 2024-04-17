@@ -39,8 +39,6 @@ class SS_Sample:
     iter: int
     cost: int
 
-VEL_THRESH = 0.8
-
 # class def for RRT
 class LMPC(Node):
     def __init__(self):
@@ -56,9 +54,15 @@ class LMPC(Node):
         self.SS = None
         self.use_dynamics = True
 
+        # global variables
         self.s_prev = 0
         self.s_curr = 0
         self.time = 0
+        self.iter = 0
+
+        self.curr_traj = []
+        self.QPSol = None
+        self.terminal_state_pred = None
         
         # Params: TODO: set_params
         self.car = CarParams()
@@ -66,6 +70,8 @@ class LMPC(Node):
         self.nu = 2 # dim of control space
         self.ts = 0.01 # time step
         self.N = 16 # prediction horizon
+        self.VEL_THRESH = 0.8
+        self.K_NEAR = 16
 
     def lmpc_run(self):
         # line 387: run
@@ -85,7 +91,7 @@ class LMPC(Node):
         self.apply_control()
         self.add_point()
 
-        terminal_state_pred = ...
+        self.terminal_state_pred = ...
         self.s_prev = self.s_curr
         self.time += 1
         self.first_run = False
@@ -102,9 +108,9 @@ class LMPC(Node):
         yawdot = ...
         slip_angle = ...
 
-        if (not self.use_dynamics) and (vel > VEL_THRESH):
+        if (not self.use_dynamics) and (vel > self.VEL_THRESH):
             self.use_dynamics = True
-        elif(self.use_dynamics) and (vel < VEL_THRESH):
+        elif(self.use_dynamics) and (vel < self.VEL_THRESH):
             self.use_dynamics = False
         # if (vel > 4.5):
 
@@ -125,23 +131,82 @@ class LMPC(Node):
 
     def select_terminal_candidate(self):
         # line 456: select_terminal_candidate
-        pass
+        if self.first_run:
+            return self.SS[-1][self.N].x
+        else:
+            return self.terminal_state_pred
 
     def add_point(self):
         # line 465: add_point
-        pass
+        point = SS_Sample()
+
+        point.x = ...
+        point.u = ...
+        point.s = self.s_curr
+        point.iter = self.iter
+        point.time = self.time
+
 
     def select_convex_ss(self, iter_start, iter_end, s):
         # line 477: select_convex_safe_set
-        pass
+        convex_ss = []
+        for it in range(iter_start, iter_end):
+            nearest_idx = self.find_nearest_point(self.SS[it], s)
+            lap_cost = self.SS[it][0].cost
+
+            if self.K_NEAR % 2:
+                start_idx = nearest_idx - (self.K_NEAR-1) // 2
+                end_idx = nearest_idx + (self.K_NEAR-1) // 2
+            else:
+                start_idx = nearest_idx - self.K_NEAR // 2 + 1
+                end_idx = nearest_idx + self.K_NEAR // 2
+
+            curr_set = []
+            if start_idx < 0:
+                for i in range(start_idx + len(self.SS[it]), len(self.SS[it])):
+                    curr_set.append(self.SS[it][i])
+                    curr_set[-1].cost += lap_cost
+                for i in range(0, end_idx):
+                    curr_set.append(self.SS[it][i])
+                if len(curr_set) != self.K_NEAR:
+                    print("Error: curr_set length not equal to K_NEAR")
+            elif end_idx+1 >= len(self.SS[it]):
+                for i in range(start_idx, len(self.SS[it])):
+                    curr_set.append(self.SS[it][i])
+                    curr_set[-1].cost += lap_cost
+                for i in range(0, end_idx - len(self.SS[it])):
+                    curr_set.append(self.SS[it][i])
+                if len(curr_set) != self.K_NEAR:
+                    print("Error: curr_set length not equal to K_NEAR")
+            else:
+                for i in range(start_idx, end_idx+1):
+                    curr_set.append(self.SS[it][i])
+            convex_ss.extend(curr_set)
+        return convex_ss
+
 
     def find_nearest_point(self, trajectory, s):
         # line 524: find_nearest_point
-        pass
+        low, high = 0, len(trajectory)
+        while low <= high:
+            mid = (low + high) // 2
+            if trajectory[mid].s == s:
+                return mid
+            elif trajectory[mid].s < s:
+                low = mid + 1
+            else:
+                high = mid - 1
+
+        if abs(trajectory[low].s - s) < abs(trajectory[high].s - s):
+            return low
+        else:
+            return high
 
     def update_cost_to_go(self, trajectory):
         # line 536: update_cost_to_go
-        pass
+        trajectory[-1].cost = 0
+        for i in range(len(trajectory)-2, -1, -1):
+            trajectory[i].cost = trajectory[i+1].cost + 1
 
     def track_to_global(self, e_y, e_yaw, s):
         # line 557: track_to_global
