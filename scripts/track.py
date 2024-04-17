@@ -18,7 +18,7 @@ class Track:
         self.x_spline = None
         self.y_spline = None
         self.step = 0.05 # step size
-        self.length = None
+        self.length = 0.0
 
     def refine_centerline(self):
         """
@@ -60,7 +60,69 @@ class Track:
         """
         closest_points = self.find_closest_waypoint(x, y)
         return closest_points[0, 2]
+    
+    def wrap_theta(self, theta: float) -> float:
+        while (theta > self.length):
+            theta -= self.length
+        while (theta < 0):
+            theta += self.length
 
+    def x_eval(self, theta: float) -> float:
+        self.wrap_theta(theta)
+        return self.x_spline(theta)
+    
+    def y_eval(self, theta: float) -> float:
+        self.wrap_theta(theta)
+        return self.y_spline(theta)
+    
+    def x_eval_d(self, theta: float) -> float:
+        self.wrap_theta(theta)
+        return self.x_spline.eval_d(theta)
+    
+    def y_eval_d(self, theta: float) -> float:
+        self.wrap_theta(theta)
+        return self.y_spline.eval_d(theta)
+    
+    def x_eval_dd(self, theta: float) -> float:
+        self.wrap_theta(theta)
+        return self.x_spline.eval_dd(theta)
+    
+    def y_eval_dd(self, theta: float) -> float:
+        self.wrap_theta(theta)
+        return self.y_spline.eval_dd(theta)
+    
+    def get_phi(self, theta: float) -> float:
+        self.wrap_theta(theta)
+        dx_dtheta = self.x_eval_d(theta)
+        dy_dtheta = self.y_eval_d(theta)
+        return np.arctan2(dy_dtheta, dx_dtheta)
+    
+    def get_left_half_width(self, theta: float) -> float:
+        idx = max(0, min(len(self.centerline_points) - 1, np.floor(theta / self.step)))
+        return self.centerline_points[idx, ...] # left half width (3)?
+    
+    def get_right_half_width(self, theta: float) -> float:
+        idx = max(0, min(len(self.centerline_points) - 1, np.floor(theta / self.step)))
+        return self.centerline_points[idx, ...]
+    
+    def set_half_width(self, theta: float, left: float, right: float):
+        idx = max(0, min(len(self.centerline_points) - 1, np.floor(theta / self.step)))
+        ##########
+        # centerline columns
+        ##########
+        self.centerline_points[idx, 3] = left
+        self.centerline_points[idx, 4] = right
+
+    def get_centerline_points_curvature(self, theta: float) -> float:
+        dx_dtheta = self.x_eval_d(theta)
+        dy_dtheta = self.y_eval_d(theta)
+        dx_ddtheta = self.x_eval_dd(theta)
+        dy_ddtheta = self.y_eval_dd(theta)
+        return (dx_dtheta * dy_ddtheta - dy_dtheta * dx_ddtheta) / (dx_dtheta**2 + dy_dtheta**2)**1.5
+
+    def get_centerline_points_radius(self, theta: float) -> float:
+        return 1.0 / self.get_centerline_points_curvature(theta)
+        
 if __name__ == "__main__":
     a = np.array([[1, 1, 1, 1, 1], [4, 4, 4, 4, 4], [3, 3, 4, 4, 4]])
     dist = np.array([[1, 0], [3, 0], [2, 0]])
