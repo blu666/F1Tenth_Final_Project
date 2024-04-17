@@ -25,6 +25,7 @@ setup(
     entry_points={
         'console_scripts': [
             'lmpc_node = lmpc.lmpc_node:main',
+            'record_ss_node = lmpc.record_ss_node:main',
         ],
     },
 )

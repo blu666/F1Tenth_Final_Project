@@ -18,6 +18,7 @@ class Track:
         self.x_spline = None
         self.y_spline = None
         self.step = 0.05 # step size
+        self.length = None
 
     def refine_centerline(self):
         """
