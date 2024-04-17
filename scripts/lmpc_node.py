@@ -1,10 +1,5 @@
 #!/usr/bin/env python3
-"""
-This file contains the class definition for tree nodes and RRT
-Before you start, please read: https://arxiv.org/pdf/1105.1186.pdf
-"""
 import numpy as np
-from numpy import linalg as LA
 import math
 
 import rclpy
@@ -24,17 +19,16 @@ import csv
 from dataclasses import dataclass
 from matplotlib import pyplot as plt
 from copy import deepcopy
+import scipy
 from scipy.spatial.transform import Rotation as R
 import tf2_ros
 from visualization_msgs.msg import Marker, MarkerArray
 from rclpy.parameter import Parameter, ParameterType
 from sensor_msgs.msg import PointCloud
 from car_params import CarParams
-from track import Track
+from track import Track ## TODO: implement Track class
 # from rrt_star import RRT_Star
 
-nx = 6 # dim of state space [x, y, yaw, v, omega, slip]
-nu = 2 # dim of control space
 
 @dataclass
 class SS_Sample:
@@ -51,8 +45,7 @@ VEL_THRESH = 0.8
 class LMPC(Node):
     def __init__(self):
         super().__init__('lmpc_node')
-        self.car = CarParams()
-        self.is_first_run = True
+        # Create pub sub
         self.create_subscription(Odometry, 'ego_racecar/odom', self.odom_callback, 10)
         self.drive_publisher = self.create_publisher(AckermannDriveStamped, '/drive', 10)
 
@@ -66,9 +59,18 @@ class LMPC(Node):
         self.s_prev = 0
         self.s_curr = 0
         self.time = 0
+        
+        # Params: TODO: set_params
+        self.car = CarParams()
+        self.nx = 6 # dim of state space [x, y, yaw, v, omega, slip]
+        self.nu = 2 # dim of control space
+        self.ts = 0.1 # time step
 
     def lmpc_run(self):
         # line 387: run
+        """
+        Call lmpc_run() in odom_callback
+        """
         if self.first_run:
             # reset QP solution
             pass
@@ -87,7 +89,7 @@ class LMPC(Node):
         self.time += 1
         self.first_run = False
 
-    def odom_callback(self, pose_msg):
+    def odom_callback(self, pose_msg: Odometry):
         current_pose = np.array([pose_msg.pose.pose.position.x, pose_msg.pose.pose.position.y])
         current_heading = R.from_quat([pose_msg.pose.pose.orientation.x, pose_msg.pose.pose.orientation.y, pose_msg.pose.pose.orientation.z, pose_msg.pose.pose.orientation.w])
         self.map_to_car_translation = np.array([pose_msg.pose.pose.position.x, pose_msg.pose.pose.position.y, pose_msg.pose.pose.position.z])
@@ -107,8 +109,6 @@ class LMPC(Node):
 
         self.lmpc_run()
 
-
-
     def init_SS(self, data_file):
         # line 244: init_SS_from_data
         pass
@@ -116,7 +116,7 @@ class LMPC(Node):
     def select_terminal_candidate(self):
         # line 456: select_terminal_candidate
         pass
-    
+
     def add_point(self):
         # line 465: add_point
         pass
@@ -124,7 +124,7 @@ class LMPC(Node):
     def select_convex_ss(self, iter_start, iter_end, s):
         # line 477: select_convex_safe_set
         pass
-    
+
     def find_nearest_point(self, trajectory, s):
         # line 524: find_nearest_point
         pass
@@ -141,9 +141,6 @@ class LMPC(Node):
         # line 543: global_to_track
         pass
 
-    # def get_linearized_dynamics(self, x, u, use_dyn):
-    #     # line 566: get_linearized_dynamics
-    #     pass
     def get_linearized_dynamics(self, Ad: np.ndarray,
                                 Bd: np.ndarray,
                                 hd: np.ndarray,
@@ -151,7 +148,8 @@ class LMPC(Node):
                                 u_op: np.ndarray,
                                 use_dynamics: bool):
         """
-        
+        line 566: get_linearized_dynamics
+        by Henry
         """
         yaw = x_op[2]
         v = x_op[3]
@@ -161,9 +159,9 @@ class LMPC(Node):
         slip_angle = x_op[5]
         
         dynamics = np.zeros(6)
-        h = np.zeros(6)
-        A = np.zeros((nx, nx))
-        B = np.zeros((nx, nu))
+        
+        A = np.zeros((self.nx, self.nx))
+        B = np.zeros((self.nx, self.nu))
         if use_dynamics:
             g = 9.81
             rear_val = g * self.car.l_r - accel * self.car.h_cg
@@ -250,7 +248,21 @@ class LMPC(Node):
             
             B[2, 1] = v / (self.car.wheelbase * np.cos(steer)**2)
             B[3, 0] = 1
+
+        h = np.zeros((6, 1))
+        aux = np.zeros((self.nx+self.nx, self.nx+self.nx), dtype=float)
+        M = np.zeros((self.nx+self.nx, self.nx+self.nx), dtype=float)
+        M12 = np.zeros((self.nx, self.nx), dtype=float)
         
+        aux[:self.nx, :self.nx] = A
+        aux[:self.nx, self.nx:] = B
+        M = scipy.linalg.expm(aux * self.ts) # TODO: LINE 680 HOW TO COMPUTE MATRIX EXPONENTIAL
+        M12 = M[:self.nx, self.nx:self.nx+self.nx]
+        h = dynamics.reshape(6, 1) - (A @ x_op + B @ u_op)
+        
+        Ad = scipy.linalg.expm(A * self.ts)
+        Bd = M12 @ B
+        hd = M12 @ h
         return Ad, Bd, hd
 
     
