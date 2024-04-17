@@ -32,11 +32,11 @@ from track import Track ## TODO: implement Track class
 
 @dataclass
 class SS_Sample:
-    x: np.ndarray
-    u: np.ndarray
-    s: float
-    time: int
-    iter: int
+    x: np.ndarray   # [x, y, yaw, v, yaw_dot, slip_angle]
+    u: np.ndarray   # [accel, steer]
+    s: float        # theta, progress along track
+    time: int       # time step
+    iter: int       # iteration
     cost: int
 
 # class def for RRT
