@@ -30,6 +30,7 @@ from visualization_msgs.msg import Marker, MarkerArray
 from rclpy.parameter import Parameter, ParameterType
 from sensor_msgs.msg import PointCloud
 from car_params import CarParams
+from track import Track
 # from rrt_star import RRT_Star
 
 nx = 6 # dim of state space [x, y, yaw, v, omega, slip]
@@ -52,7 +53,7 @@ class LMPC(Node):
         super().__init__('lmpc_node')
         self.car = CarParams()
         self.is_first_run = True
-        self.create_subscription(Odometry, 'ego_racecar/odom', self.pose_callback, 10)
+        self.create_subscription(Odometry, 'ego_racecar/odom', self.odom_callback, 10)
         self.drive_publisher = self.create_publisher(AckermannDriveStamped, '/drive', 10)
 
         self.map_to_car_rotation = None
@@ -85,7 +86,6 @@ class LMPC(Node):
         self.s_prev = self.s_curr
         self.time += 1
         self.first_run = False
-        
 
     def odom_callback(self, pose_msg):
         current_pose = np.array([pose_msg.pose.pose.position.x, pose_msg.pose.pose.position.y])
@@ -93,7 +93,7 @@ class LMPC(Node):
         self.map_to_car_translation = np.array([pose_msg.pose.pose.position.x, pose_msg.pose.pose.position.y, pose_msg.pose.pose.position.z])
         self.map_to_car_rotation = R.from_quat([pose_msg.pose.pose.orientation.x, pose_msg.pose.pose.orientation.y, pose_msg.pose.pose.orientation.z, pose_msg.pose.pose.orientation.w])
 
-        s_curr = track.findTheta(current_pose[0], current_pose[1], 0, True)
+        s_curr = Track.findTheta(current_pose[0], current_pose[1], 0, True)
         yaw = ...
         vel = ...
         yawdot = ...
@@ -253,9 +253,7 @@ class LMPC(Node):
         
         return Ad, Bd, hd
 
-    def pose_callback(self, msg):
-        current_pose = np.array([msg.pose.pose.position.x, msg.pose.pose.position.y])
-        current_heading = R.from_quat([msg.pose.pose.orientation.x, msg.pose.pose.orientation.y, msg.pose.pose.orientation.z, msg.pose.pose.orientation.w])
+    
         
     def wrap_angle(self, angle, ref_angle):
         # line 688: wrap_angle
