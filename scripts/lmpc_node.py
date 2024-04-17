@@ -210,11 +210,31 @@ class LMPC(Node):
 
     def track_to_global(self, e_y, e_yaw, s):
         # line 557: track_to_global
-        pass
+        dx_ds = Track.x_eval_d(s)
+        dy_ds = Track.y_eval_d(s)
+
+        proj = np.array([Track.x_eval(s), Track.y_eval(s)])
+        temp = np.array([-dy_ds, dx_ds])
+        temp = temp / np.linalg.norm(temp)
+        pos = proj + temp * e_y
+        yaw = e_yaw + np.arctan2(dy_ds, dx_ds)
+        return np.array([pos[0], pos[1], yaw])
 
     def global_to_track(self, x, y, yaw, s):
         # line 543: global_to_track
-        pass
+        x_proj = Track.x_eval(s)
+        y_proj = Track.y_eval(s)
+        e_y = np.sqrt((x - x_proj)**2 + (y - y_proj)**2)
+        dx_ds = Track.x_eval_d(s)
+        dy_ds = Track.y_eval_d(s)
+        if dx_ds * (y - y_proj) - dy_ds * (x - x_proj) > 0:
+            e_y = -e_y
+        e_yaw = yaw - np.arctan2(dy_ds, dx_ds)
+        while e_yaw > np.pi:
+            e_yaw -= 2*np.pi
+        while e_yaw < -np.pi:
+            e_yaw += 2*np.pi
+        return np.array([e_y, e_yaw, s])
 
     def get_linearized_dynamics(self, Ad: np.ndarray,
                                 Bd: np.ndarray,
@@ -344,7 +364,11 @@ class LMPC(Node):
         
     def wrap_angle(self, angle, ref_angle):
         # line 688: wrap_angle
-        pass
+        while angle - ref_angle > np.pi:
+            angle -= 2*np.pi
+        while angle - ref_angle < -np.pi:
+            angle += 2*np.pi
+        return angle
 
     def solve_MPC(self, terminal_candidate):
         # line 693: solve_MPC
@@ -352,7 +376,19 @@ class LMPC(Node):
 
     def apply_control(self):
         # line 938: apply_control
-        pass
+        accel = ...
+        steer = ...
+
+        self.get_logger().info(f"accel_cmd: {accel}, steer_cmd: {steer}, slip_angle: {self.slip_angle}")
+        steer = np.clip(steer, -self.car.steer_max, self.car.steer_max)
+
+        drive_msg = AckermannDriveStamped()
+        drive_msg.header.stamp = self.get_clock().now().to_msg()
+        drive_msg.header.frame_id = 'base_link'
+        drive_msg.drive.steering_angle = steer
+        drive_msg.drive.steering_angle_velocity = 1.0
+        drive_msg.drive.acceleration = accel
+        self.drive_publisher.publish(drive_msg)
     
 
 def main(args=None):
