@@ -64,7 +64,8 @@ class LMPC(Node):
         self.car = CarParams()
         self.nx = 6 # dim of state space [x, y, yaw, v, omega, slip]
         self.nu = 2 # dim of control space
-        self.ts = 0.1 # time step
+        self.ts = 0.01 # time step
+        self.N = 16 # prediction horizon
 
     def lmpc_run(self):
         # line 387: run
@@ -109,8 +110,17 @@ class LMPC(Node):
 
         self.lmpc_run()
 
-    def init_SS(self, data_file):
+    def init_SS(self, data_file: str):
         # line 244: init_SS_from_data
+        # Read data from csv file
+        with open(data_file, 'r') as f:
+            data = np.loadtxt(f, delimiter=',') # (time_steps, 8)
+            # time, x, y, yaw, v, acc_cmd, steer_cmd, s_curr
+        
+        for i in range(data.shape[0]):
+            pass
+        # check if starting new lab
+        # TODO: Design storing structure for SS
         pass
 
     def select_terminal_candidate(self):
