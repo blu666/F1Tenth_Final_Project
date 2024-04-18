@@ -86,8 +86,9 @@ class Track:
         y = np.append(y, y[0]) # close the loop
         xy = np.hstack([x[:, None], y[:, None]])
         s_new = self.get_cum_distance(xy)
-        left_right_distance = self.find_width(x)
+        left_right_distance = self.find_width(xy)
         new_points = np.hstack([xy, left_right_distance[:], s_new[:, None]])
+        print(new_points.shape)
         self.centerline_points = new_points
         self.centerline_xy = self.centerline_points[:, :2]
         self.length = self.centerline_points[-1, 4]
@@ -102,7 +103,7 @@ class Track:
         """
         Update left right TODO
         """
-        widths = np.zeros_like(xy)
+        widths = np.ones_like(xy, dtype=float) * 0.7
         return widths
 
     def find_closest_waypoint(self, x: float, y: float, n: int = 1):

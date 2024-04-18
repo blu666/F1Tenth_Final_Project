@@ -92,7 +92,7 @@ class RecordSS(Node):
             self.get_logger().info("Reset starting line")
             self.track.reset_starting_point(pose_msg.pose.pose.position.x,
                                             pose_msg.pose.pose.position.y,
-                                            refine=False)
+                                            refine=True)
             self.reset_startingline = False
 
     def map_callback(self, map_msg: OccupancyGrid):
