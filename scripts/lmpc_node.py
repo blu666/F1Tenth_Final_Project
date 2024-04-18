@@ -55,7 +55,7 @@ class LMPC(Node):
         self.s_prev = 0
         self.s_curr = 0
         self.time = 0
-        self.iter = 0
+        self.iter = 2
         self.car_pos = np.zeros(2)
         self.yaw = 0
         self.vel = 0
@@ -106,9 +106,9 @@ class LMPC(Node):
             # reset QP solution
             self.QPSol = np.zeros((self.car.N+1)*self.nx + self.car.N*self.nu + self.nx*(self.car.N+1) + 2*(self.car.K_NEAR+1))
             for i in range(self.car.N+1):
-                self.QPSol[i*self.nx:i*self.nx+self.nx] = self.SS[self.iter][i].x
+                self.QPSol[i*self.nx:i*self.nx+self.nx] = self.SS[1][i].x
             for i in range(self.car.N):
-                self.QPSol[(self.car.N+1)*self.nx+i*self.nu:(self.car.N+1)*self.nx+i*self.nu+self.nu] = self.SS[self.iter][i].u
+                self.QPSol[(self.car.N+1)*self.nx+i*self.nu:(self.car.N+1)*self.nx+i*self.nu+self.nu] = self.SS[1][i].u
 
         # check if new lap
         if self.s_curr - self.s_prev < -self.Track.length/2:
@@ -128,7 +128,7 @@ class LMPC(Node):
         self.s_prev = self.s_curr
         self.time += 1
         self.first_run = False
-        self.get_logger().info("LMPC Run iter: {}, time: {}".format(self.iter, self.time))
+        self.get_logger().info("LMPC Run iter: {}, time: {}, s_curr: {}".format(self.iter, self.time, self.s_curr))
 
     def odom_callback(self, pose_msg: Odometry):
         current_pose = np.array([pose_msg.pose.pose.position.x, pose_msg.pose.pose.position.y])
@@ -136,16 +136,16 @@ class LMPC(Node):
         self.map_to_car_translation = np.array([pose_msg.pose.pose.position.x, pose_msg.pose.pose.position.y, pose_msg.pose.pose.position.z])
         self.map_to_car_rotation = R.from_quat([pose_msg.pose.pose.orientation.x, pose_msg.pose.pose.orientation.y, pose_msg.pose.pose.orientation.z, pose_msg.pose.pose.orientation.w])
 
-        s_curr = self.Track.find_theta(current_pose)
+        self.s_curr = self.Track.find_theta(current_pose)
         self.yaw = current_heading.as_euler('zyx')[0]
         self.vel = np.linalg.norm([pose_msg.twist.twist.linear.x, pose_msg.twist.twist.linear.y])
         self.yawdot = pose_msg.twist.twist.angular.z
         self.slip_angle = np.arctan2(pose_msg.twist.twist.linear.y, pose_msg.twist.twist.linear.x)
 
-        if (not self.use_dynamics) and (self.vel > self.car.DYNA_VEL_THRESH):
-            self.use_dynamics = True
-        elif(self.use_dynamics) and (self.vel < self.car.DYNA_VEL_THRESH):
-            self.use_dynamics = False
+        # if (not self.use_dynamics) and (self.vel > self.car.DYNA_VEL_THRESH):
+        #     self.use_dynamics = True
+        # elif(self.use_dynamics) and (self.vel < self.car.DYNA_VEL_THRESH):
+        #     self.use_dynamics = False
         # if (vel > 4.5):
 
         # self.lmpc_run()
@@ -260,6 +260,8 @@ class LMPC(Node):
         trajectory[-1].cost = 0
         for i in range(len(trajectory)-2, -1, -1):
             trajectory[i].cost = trajectory[i+1].cost + 1
+            if trajectory[i].cost < 0:
+                print("Error: negative cost")
         return trajectory
 
     def track_to_global(self, e_y, e_yaw, s):
@@ -620,15 +622,17 @@ class LMPC(Node):
 
         H_t = HessianMatrix.transpose()
         sparse_I = sparse.eye((self.car.N+1)*self.nx + self.car.N*self.nu + self.car.N+1 + 2*self.car.K_NEAR + self.nx)
-        # print("hessian", HessianMatrix)
         HessianMatrix = 0.5 * (HessianMatrix + H_t) + 1e-7 * sparse_I
+        # print("hessian", np.sum(HessianMatrix.toarray() < 0))
+        # print("gradient", np.sum(gradient < 0))
+
         
         # self.osqp.update(q=gradient, l=lower, u=upper)
         # self.osqp.update(Px=sparse.triu(HessianMatrix), Ax=constraintMatrix)
         
         # print("gradient", gradient)
         self.osqp = OSQP()
-        self.osqp.setup(P=HessianMatrix, q=gradient, A=constraintMatrix, l=lower, u=upper)#, warm_start=True, polish=True)
+        self.osqp.setup(P=HessianMatrix, q=gradient, A=constraintMatrix, l=lower, u=upper, warm_start=True, polish=True, verbose=False)
         results = self.osqp.solve()
         if results.info.status_val != 1:
             print("Error: OSQP failed to solve")
@@ -642,10 +646,14 @@ class LMPC(Node):
         # HessianMatrix = cp.Parameter(HessianMatrix.shape, value=HessianMatrix.toarray())
         # gradient = cp.Parameter(gradient.shape, value=gradient)
         # constraintMatrix = cp.Parameter(constraintMatrix.shape, value=constraintMatrix.toarray())
+        # # print(lower)
+        # lower[np.where(lower == -np.inf)] = -1e10
+        # upper[np.where(upper == np.inf)] = 1e10
+
         # lower = cp.Parameter(lower.shape, value=lower)
         # upper = cp.Parameter(upper.shape, value=upper)
         # x = cp.Variable((self.car.N+1)*self.nx + self.car.N*self.nu + self.car.N+1 + 2*self.car.K_NEAR + self.nx)
-        # objective = cp.Minimize(0.5 * cp.quad_form(x, HessianMatrix) + gradient @ x)
+        # objective = cp.Minimize(0.5 * cp.quad_form(x, HessianMatrix, assume_PSD=True) + gradient @ x)
         # constraints = [constraintMatrix @ x <= upper, constraintMatrix @ x >= lower]
         # prob = cp.Problem(objective, constraints)
         # result = prob.solve()
@@ -667,6 +675,7 @@ class LMPC(Node):
         drive_msg.header.frame_id = 'base_link'
         drive_msg.drive.steering_angle = steer
         drive_msg.drive.steering_angle_velocity = 1.0
+        drive_msg.drive.speed = self.vel + accel * (1.0/20.0)
         drive_msg.drive.acceleration = accel
         self.drive_publisher.publish(drive_msg)
 

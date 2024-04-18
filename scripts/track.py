@@ -16,7 +16,7 @@ class Track:
     def __init__(self, centerline_points: str, initialized: bool = False):
         self.centerline_points = self.load_waypoints(centerline_points) # (N, 5) [x, y, left, right, theta]
         self.centerline_xy = self.centerline_points[:, :2]
-        self.step = 0.05 # step size
+        self.step = 0.2 # 0.05 # step size
         if not initialized:
             self.x_spline: Spline = None
             self.y_spline: Spline = None
