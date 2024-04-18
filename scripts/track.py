@@ -1,6 +1,6 @@
 import numpy as np
 from dataclasses import dataclass
-
+from spline import Spline
 
 # @dataclass
 # class Waypoint:
@@ -15,42 +15,63 @@ class Track:
     def __init__(self, centerline_points: str):
         self.centerline_points = self.load_waypoints(centerline_points) # (N, 5) [x, y, left, right, theta], should form a loop
         self.centerline_xy = self.centerline_points[:, :2]
-        self.x_spline = None
-        self.y_spline = None
+        self.x_spline: Spline = None
+        self.y_spline: Spline = None
         self.step = 0.05 # step size
         self.length = 0.0
 
     def reset_starting_point(self, x: float, y: float):
+        """
+        The order of the waypoints should be rearranged, so that the closest waypoint to the starting position is the first waypoint.
+        """
+        ## Rearange waypoints
         N = self.centerline_points.shape[0]
         new_points = np.zeros((N+1, 5))
         _, starting_index = self.find_closest_waypoint(x, y)
         new_points[:N, :4] = np.roll(self.centerline_points[:, :4], -starting_index, axis=0)
         new_points[N, :4] = new_points[0, :4] # CLOSE THE LOOP
+        ## Find s for each point
         dis = np.zeros(N+1)
         dis[1:] = np.linalg.norm(new_points[1:, :2] - new_points[:-1, :2], axis=1) # (n-1)
         new_points[:, 4] = np.cumsum(dis)
         self.centerline_points = new_points
         self.centerline_xy = self.centerline_xy = self.centerline_points[:, :2]
-        # self.step = 0.05 # step size
         self.length = self.centerline_points[-1, 4]
+        ## Fit spline y = f(s), x = f(s)
+        self.x_spline = Spline(self.centerline_points[:, 4], self.centerline_points[:, 0])
+        self.y_spline = Spline(self.centerline_points[:, 4], self.centerline_points[:, 1])
         np.savetxt("map/reassigned_centerline.csv", new_points, delimiter=",")
         return
     
-    def refine_centerline(self):
+    def plot_spline(self):
         """
-        downsample centerline waypoints, fit spline, sample new set of points.
+        Plot the centerline spline
+        """
+        import matplotlib.pyplot as plt
+        s = np.linspace(0, self.length, 1000)
+        xs = self.x_spline(s)
+        ys = self.y_spline(s)
+        plt.plot(xs, ys)
+        plt.axis("equal")
+        plt.show()
+        return
+    
+    def refine_uniform_waypoint(self):
+        """
+        Sample new set of waypoints uniformly to step_size.
         """
         return
 
     def load_waypoints(self, csv_path: str):
         self.waypoints = csv_path
         with open(csv_path, "r") as f:
-            waypoint = np.loadtxt(f, delimiter=",")
-            # [[x, y, left, right, theta], ...]
-            # TODO: [[x, y]], and refine.
+            waypoint = np.loadtxt(f, delimiter=",") # [[x, y, left, right], ...]
         return waypoint
 
-    def initialize_width(self):
+    def update_width(self):
+        """
+        Update left right
+        """
         pass
 
 
@@ -64,14 +85,15 @@ class Track:
         else:
             dist_sorted = np.argsort(dist)
             ind = dist_sorted[:np.min(n, len(dist_sorted))]
-        return self.centerline_points[ind], ind # (n, 5) [x, y, theta, left, right]
+        return self.centerline_points[ind].reshape(n, -1), ind # (n, 5) [x, y, theta, left, right]
 
     def get_theta(self, x: float, y: float) -> float:
         """
         Given a position, estimate progress on track
         """
         closest_points, _ = self.find_closest_waypoint(x, y)
-        return closest_points[0, 2]
+        # print(closest_points)
+        return closest_points[0, 4]
     
     def find_theta(self, point: np.ndarray) -> float:
         dist = np.linalg.norm(self.centerline_points[:, :2] - point, axis=1)
@@ -127,8 +149,8 @@ class Track:
         ##########
         # centerline columns
         ##########
-        self.centerline_points[idx, 3] = left
-        self.centerline_points[idx, 4] = right
+        self.centerline_points[idx, 2] = left
+        self.centerline_points[idx, 3] = right
 
     def get_centerline_points_curvature(self, theta: float) -> float:
         dx_dtheta = self.x_eval_d(theta)

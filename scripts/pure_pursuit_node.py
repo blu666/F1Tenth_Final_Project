@@ -33,11 +33,13 @@ class PurePursuit(Node):
         self.testpoint_publisher = self.create_publisher(MarkerArray, '/pure_pursuit/testpoints', QoSProfile(depth=10, durability=QoSDurabilityPolicy.TRANSIENT_LOCAL))
         self.future_pos_publisher = self.create_publisher(Marker, '/pure_pursuit/future_pos', QoSProfile(depth=10, durability=QoSDurabilityPolicy.TRANSIENT_LOCAL))
         self.drive_publisher = self.create_publisher(AckermannDriveStamped, '/drive', 10)
+        self.create_timer(0.03, self.publish_drive)
+        
         
         self.map_to_car_rotation = None
         self.map_to_car_translation = None
 
-        waypoints = self.load_waypoints("map/levine/levine_slam_center_map_sparse.csv")
+        waypoints = self.load_waypoints("map/levine/centerline.csv")
         self.waypoints = waypoints[:, :2] # x, y
         # self.params = waypoints[:, 2:] #  v, vel percent, look_ahead, p, d, index
         
@@ -49,7 +51,7 @@ class PurePursuit(Node):
         # set_v_max = 5.5
         # self.params[:, 0] = (velocities - gloabl_v_min) / (global_v_max - gloabl_v_min) * (set_v_max - set_v_min) + set_v_min
         
-        
+        self.current_pos, self.current_heading = None, None
         self.publish_waypoints()
         self.last_curve = 0.0
         self.vis = True
@@ -114,21 +116,29 @@ class PurePursuit(Node):
     
     def pose_callback(self, pose_msg):
         # t0 = Time.from_msg(pose_msg.header.stamp)
-        current_pos = np.array([pose_msg.pose.pose.position.x, pose_msg.pose.pose.position.y])
-        current_heading = R.from_quat(np.array([pose_msg.pose.pose.orientation.x, pose_msg.pose.pose.orientation.y, pose_msg.pose.pose.orientation.z, pose_msg.pose.pose.orientation.w]))
+        self.current_pos = np.array([pose_msg.pose.pose.position.x, pose_msg.pose.pose.position.y])
+        self.current_heading = R.from_quat(np.array([pose_msg.pose.pose.orientation.x, pose_msg.pose.pose.orientation.y, pose_msg.pose.pose.orientation.z, pose_msg.pose.pose.orientation.w]))
         
         
         # find current waypoint by projecting the car forward by lookahead distance, then finding the closest waypoint to that projected position
         # depending on the distance of the closest waypoint to current position, we will find two waypoints that sandwich the current position plus lookahead distance
         # then we interpolate between these two waypoints to find the current waypoint
-        current_waypoint = self.find_current_waypoint(current_pos, current_heading)
-        self.publish_goalpoint(current_waypoint)
-    
+        
         # transform the current waypoint to the vehicle frame of reference
         self.map_to_car_translation = np.array([pose_msg.pose.pose.position.x, pose_msg.pose.pose.position.y, pose_msg.pose.pose.position.z])
         self.map_to_car_rotation = R.from_quat([pose_msg.pose.pose.orientation.x, pose_msg.pose.pose.orientation.y, pose_msg.pose.pose.orientation.z, pose_msg.pose.pose.orientation.w])
 
         
+        
+        # t1 = Time.from_msg(drive_msg.header.stamp)
+        # self.get_logger().info("Time taken: {}".format((t1 - t0).nanoseconds / 1e9))
+
+    def publish_drive(self):
+        if self.current_pos is None or self.current_heading is None:
+            return
+        current_waypoint = self.find_current_waypoint(self.current_pos, self.current_heading)
+        self.publish_goalpoint(current_waypoint)
+    
         wp_car_frame = (np.array([current_waypoint[0], current_waypoint[1], 0]) - self.map_to_car_translation)
         wp_car_frame = wp_car_frame @ self.map_to_car_rotation.as_matrix()
 
@@ -139,13 +149,11 @@ class PurePursuit(Node):
         drive_msg.header.stamp = self.get_clock().now().to_msg()
         drive_msg.header.frame_id = "ego_racecar/base_link"
         drive_msg.drive.steering_angle = self.p * curvature + self.d * (self.last_curve - curvature)
-        pf_speed = np.linalg.norm(np.array([pose_msg.twist.twist.linear.x, pose_msg.twist.twist.linear.y]))
-        drive_msg.drive.speed = self.interpolate_vel(pf_speed, self.v)
+        # pf_speed = np.linalg.norm(np.array([pose_msg.twist.twist.linear.x, pose_msg.twist.twist.linear.y]))
+        drive_msg.drive.speed = self.v
         # self.get_logger().info("pf speed: {} seg speed: {} command: {}".format(pf_speed, current_params[0] * current_params[1], drive_msg.drive.speed))
         self.get_logger().info("Steering angle: {} Speed: {}".format(drive_msg.drive.steering_angle, drive_msg.drive.speed))
         self.drive_publisher.publish(drive_msg)
-        # t1 = Time.from_msg(drive_msg.header.stamp)
-        # self.get_logger().info("Time taken: {}".format((t1 - t0).nanoseconds / 1e9))
 
     def interpolate_vel(self, current_vel, seg_vel):
         """

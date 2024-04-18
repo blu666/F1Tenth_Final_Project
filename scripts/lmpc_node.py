@@ -379,7 +379,7 @@ class LMPC(Node):
 
     def solve_MPC(self, terminal_candidate):
         # line 693: solve_MPC
-        s_t = self.Track.find_theta(terminal_candidate)
+        s_t = ...self.Track.find_theta(terminal_candidate)
 
         convex_ss = self.select_convex_ss(self.iter-2, self.iter-1, s_t)
 
