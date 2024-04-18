@@ -550,7 +550,7 @@ class LMPC(Node):
                 constraintMatrix[num_constraint_sofar + state_idx, (self.car.N+1)*self.nx + self.car.N*self.nu + self.car.N+1 + i] = convex_ss[i].x[state_idx]
         for state_idx in range(self.nx):
             constraintMatrix[num_constraint_sofar + state_idx, self.car.N*self.nx + state_idx] = -1.0
-            constraintMatrix[num_constraint_sofar + state_idx, (self.car.N+1)*self.nx + self.car.N*self.nu + 2*self.car.K_NEAR + state_idx] = 1.0
+            constraintMatrix[num_constraint_sofar + state_idx, (self.car.N+1)*self.nx + self.car.N*self.nu + self.car.N+1 + 2*self.car.K_NEAR + state_idx] = 1.0
 
             lower[num_constraint_sofar + state_idx] = 0.0
             upper[num_constraint_sofar + state_idx] = np.inf
