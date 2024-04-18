@@ -1,6 +1,6 @@
 import numpy as np
 from dataclasses import dataclass
-
+from spline import Spline
 
 # @dataclass
 # class Waypoint:
@@ -15,8 +15,8 @@ class Track:
     def __init__(self, centerline_points: str):
         self.centerline_points = self.load_waypoints(centerline_points) # (N, 5) [x, y, left, right, theta], should form a loop
         self.centerline_xy = self.centerline_points[:, :2]
-        self.x_spline = None
-        self.y_spline = None
+        self.x_spline: Spline = None
+        self.y_spline: Spline = None
         self.step = 0.05 # step size
         self.length = 0.0
 
@@ -33,6 +33,9 @@ class Track:
         self.centerline_xy = self.centerline_xy = self.centerline_points[:, :2]
         # self.step = 0.05 # step size
         self.length = self.centerline_points[-1, 4]
+        self.x_spline = Spline(self.centerline_points[:, 4], self.centerline_points[:, 0])
+        self.y_spline = Spline(self.centerline_points[:, 4], self.centerline_points[:, 1])
+        
         np.savetxt("map/reassigned_centerline.csv", new_points, delimiter=",")
         return
     
