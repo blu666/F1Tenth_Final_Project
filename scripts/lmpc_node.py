@@ -451,8 +451,8 @@ class LMPC(Node):
         s_t = self.Track.find_theta(terminal_candidate[:2])
 
         convex_ss = self.select_convex_ss(self.iter-2, self.iter-1, s_t)
-        print("ter", terminal_candidate)
-        print("convex ss", convex_ss)
+        # print("ter", terminal_candidate)
+        # print("convex ss", convex_ss)
         HessianMatrix = sparse.csr_matrix(((self.car.N+1)*self.nx + self.car.N*self.nu + self.car.N+1 + 2*self.car.K_NEAR + self.nx, 
                                           (self.car.N+1)*self.nx + self.car.N*self.nu + self.car.N+1 + 2*self.car.K_NEAR + self.nx))
         
