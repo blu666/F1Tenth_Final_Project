@@ -13,13 +13,29 @@ class Waypoint:
 
 class Track:
     def __init__(self, centerline_points: str):
-        self.centerline_points = self.load_waypoints(centerline_points) # (N, 5) [x, y, theta, left, right], should form a loop
+        self.centerline_points = self.load_waypoints(centerline_points) # (N, 5) [x, y, left, right, theta], should form a loop
         self.centerline_xy = self.centerline_points[:, :2]
         self.x_spline = None
         self.y_spline = None
         self.step = 0.05 # step size
         self.length = 0.0
 
+    def reset_starting_point(self, x: float, y: float):
+        N = self.centerline_points.shape[0]
+        new_points = np.zeros((N+1, 5))
+        _, starting_index = self.find_closest_waypoint(x, y)
+        new_points[:N, :4] = np.roll(self.centerline_points[:, :4], -starting_index, axis=0)
+        new_points[N, :4] = new_points[0, :4] # CLOSE THE LOOP
+        dis = np.zeros(N+1)
+        dis[1:] = np.linalg.norm(new_points[1:, :2] - new_points[:-1, :2], axis=1) # (n-1)
+        new_points[:, 4] = np.cumsum(dis)
+        self.centerline_points = new_points
+        self.centerline_xy = self.centerline_xy = self.centerline_points[:, :2]
+        # self.step = 0.05 # step size
+        self.length = self.centerline_points[-1, 4]
+        np.savetxt("map/reassigned_centerline.csv", new_points, delimiter=",")
+        return
+    
     def refine_centerline(self):
         """
         downsample centerline waypoints, fit spline, sample new set of points.
@@ -30,7 +46,7 @@ class Track:
         self.waypoints = csv_path
         with open(csv_path, "r") as f:
             waypoint = np.loadtxt(f, delimiter=",")
-            # [[x, y, theta, left, right], ...] -> [Waypoint(x, y, theta, left, right), ...]
+            # [[x, y, left, right, theta], ...]
             # TODO: [[x, y]], and refine.
         return waypoint
 
@@ -38,27 +54,19 @@ class Track:
         """
         Return closest n waypoints to the given x, y position
         """
-        # min_dist = float('inf')
-        # closest_point = None
-        # for point in self.centerline_points:
-        #     dist = np.sqrt((x - point[0])**2 + (y - point[1])**2)
-        #     if dist < min_dist:
-        #         min_dist = dist
-        #         closest_point = point
         dist = np.linalg.norm(self.centerline_xy - np.array([x, y]), axis=1)
         if n == 1:
-            dist_min = np.argmin(dist)
-            closest_points = self.centerline_points[dist_min]
+            ind = np.argmin(dist)
         else:
             dist_sorted = np.argsort(dist)
-            closest_points = self.centerline_points[dist_sorted[:np.min(n, len(dist_sorted))]]
-        return closest_points # (n, 5) [x, y, theta, left, right]
+            ind = dist_sorted[:np.min(n, len(dist_sorted))]
+        return self.centerline_points[ind], ind # (n, 5) [x, y, theta, left, right]
 
     def get_theta(self, x: float, y: float) -> float:
         """
         Given a position, estimate progress on track
         """
-        closest_points = self.find_closest_waypoint(x, y)
+        closest_points, _ = self.find_closest_waypoint(x, y)
         return closest_points[0, 2]
     
     def wrap_theta(self, theta: float) -> float:
@@ -124,10 +132,6 @@ class Track:
         return 1.0 / self.get_centerline_points_curvature(theta)
         
 if __name__ == "__main__":
-    a = np.array([[1, 1, 1, 1, 1], [4, 4, 4, 4, 4], [3, 3, 4, 4, 4]])
-    dist = np.array([[1, 0], [3, 0], [2, 0]])
-    dist = np.linalg.norm(a, axis=1)
-    s = np.argsort(dist)
-    
-    print(a[s[:2]])
+    a = np.cumsum(np.ones(10), axis=0)
+    print(a)
     pass

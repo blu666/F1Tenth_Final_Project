@@ -22,10 +22,10 @@ setup(
     description='f1tenth lmpc',
     license='MIT',
     tests_require=['pytest'],
-    entry_points={
-        'console_scripts': [
-            'lmpc_node = lmpc.lmpc_node:main',
-            'record_ss_node = lmpc.record_ss_node:main',
-        ],
-    },
+    # entry_points={
+    #     'console_scripts': [
+    #         'lmpc_node = lmpc.lmpc_node:main',
+    #         'record_ss_node = lmpc.record_ss_node:main',
+    #     ],
+    # },
 )

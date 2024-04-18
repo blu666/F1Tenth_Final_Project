@@ -16,8 +16,8 @@ class RecordSS(Node):
     def __init__(self):
         super().__init__('record_ss_node')
         self.savepath = "./map/inital_ss.csv"
-        # self.create_subscription(Odometry, '/ego_racecar/odom', self.pose_callback, 10)
-        self.create_subscription(Odometry, '/pf/pose/odom', self.pose_callback, 10)
+        self.create_subscription(Odometry, '/ego_racecar/odom', self.pose_callback, 10)
+        # self.create_subscription(Odometry, '/pf/pose/odom', self.pose_callback, 10)
         self.create_subscription(AckermannDriveStamped, '/drive', self.control_callback, 10)
         
         self.track = Track("./map/levine/centerline.csv") # TODO: generate centerline.csv
@@ -29,8 +29,10 @@ class RecordSS(Node):
         self.s_prev = 0
         self.record = []
         self.is_finished = False
+        self.is_startingline_reset = False
 
     def control_callback(self, drive_msg: AckermannDriveStamped):
+        # return
         if drive_msg is None:
             self.get_logger().info("INVALID DRIVE MESSAGE")
             return
@@ -58,11 +60,12 @@ class RecordSS(Node):
             # TODO: Stop recording after two laps
             if self.lap > 1:
                 self.get_logger().info("Finished recording")
-                self.save_record(self.savepath)
+                # self.save_record(self.savepath)
                 self.is_finished = True
                 rclpy.shutdown()
         self.s_prev = s_curr
         self.record.append([self.time, pos[0], pos[1], yaw, vel, self.u[0], self.u[1], s_curr, self.lap])
+        print(self.time, pos[0], pos[1], yaw, vel, self.u[0], self.u[1], s_curr, self.lap)
         self.time += 1
 
     def save_record(self, savepath: str):
@@ -73,6 +76,10 @@ class RecordSS(Node):
     def pose_callback(self, pose_msg: Odometry):
         # t0 = Time.from_msg(pose_msg.header.stamp)
         self.odom = pose_msg
+        if not self.is_startingline_reset:
+            self.get_logger().info("Reset starting line")
+            self.track.reset_starting_point(pose_msg.pose.pose.position.x, pose_msg.pose.pose.position.y)
+            self.is_startingline_reset = True
 
 
 def main(args=None):

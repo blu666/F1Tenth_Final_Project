@@ -36,16 +36,16 @@ include_directories(
 )
 
 # Create Cpp executable
-add_executable(lmpc_node src/lmpc_node.cpp)
+# add_executable(lmpc_node src/lmpc_node.cpp)
 
-ament_target_dependencies(lmpc_node 
-  rclcpp geometry_msgs ackermann_msgs nav_msgs sensor_msgs std_msgs visualization_msgs tf2_ros
-)
+# ament_target_dependencies(lmpc_node 
+#   rclcpp geometry_msgs ackermann_msgs nav_msgs sensor_msgs std_msgs visualization_msgs tf2_ros
+# )
 
 # Install Cpp executables
-install(TARGETS
-  lmpc_node
-  DESTINATION lib/${PROJECT_NAME})
+# install(TARGETS
+#   lmpc_node
+#   DESTINATION lib/${PROJECT_NAME})
 
 # Install Python modules
 ament_python_install_package(${PROJECT_NAME})
