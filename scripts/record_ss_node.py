@@ -6,6 +6,7 @@ from ackermann_msgs.msg import AckermannDriveStamped
 from nav_msgs.msg import Odometry
 from scipy.spatial.transform import Rotation as R
 from track import Track
+from nav_msgs.msg import OccupancyGrid
 
 
 class RecordSS(Node):
@@ -16,21 +17,31 @@ class RecordSS(Node):
     def __init__(self):
         super().__init__('record_ss_node')
         self.savepath = "./map/inital_ss.csv"
+        ## Subs
         self.create_subscription(Odometry, '/ego_racecar/odom', self.pose_callback, 10)
         # self.create_subscription(Odometry, '/pf/pose/odom', self.pose_callback, 10)
         self.create_subscription(AckermannDriveStamped, '/drive', self.control_callback, 10)
+        self.create_subscription(OccupancyGrid, '/map', self.map_callback, 10)
         
-        self.track = Track("./map/levine/centerline.csv") # TODO: generate centerline.csv
+        self.track = Track("./map/levine/centerline.csv")
+        self.reset_startingline = True
+        
         self.u = np.zeros(2, dtype=np.float32)
-        self.x = np.zeros(6, dtype=np.float32)
+        # self.x = np.zeros(6, dtype=np.float32)
+        
         self.time = 0
         self.lap = 0
         self.odom: Odometry = None
+        self.map: OccupancyGrid = None
         self.s_prev = 0
         self.record = []
         self.is_finished = False
-        self.is_startingline_reset = False
-
+        # self.is_initized = False
+    
+    def check_init(self):
+        if self.odom is None or self.map is None:
+            return False
+    
     def control_callback(self, drive_msg: AckermannDriveStamped):
         # return
         if drive_msg is None:
@@ -76,11 +87,14 @@ class RecordSS(Node):
     def pose_callback(self, pose_msg: Odometry):
         # t0 = Time.from_msg(pose_msg.header.stamp)
         self.odom = pose_msg
-        if not self.is_startingline_reset:
+        if self.reset_startingline:
             self.get_logger().info("Reset starting line")
             self.track.reset_starting_point(pose_msg.pose.pose.position.x, pose_msg.pose.pose.position.y)
-            self.is_startingline_reset = True
+            self.reset_startingline = False
 
+    def map_callback(self, map_msg: OccupancyGrid):
+        self.get_logger().info("Map received")
+        return
 
 def main(args=None):
     rclpy.init(args=args)

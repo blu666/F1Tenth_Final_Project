@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import numpy as np
 from dataclasses import dataclass
 from spline import Spline
@@ -20,28 +21,36 @@ class Track:
         self.step = 0.05 # step size
         self.length = 0.0
 
-    def reset_starting_point(self, x: float, y: float):
+    def reset_starting_point(self, x: float, y: float, refine: bool = True):
         """
         The order of the waypoints should be rearranged, so that the closest waypoint to the starting position is the first waypoint.
         """
         ## Rearange waypoints
-        N = self.centerline_points.shape[0]
+        N = self.centerline_points.shape[0] # NOTE: if calling this function we assume the centerline_point initially is not a closed loop, hence +1 in size
         new_points = np.zeros((N+1, 5))
         _, starting_index = self.find_closest_waypoint(x, y)
         new_points[:N, :4] = np.roll(self.centerline_points[:, :4], -starting_index, axis=0)
         new_points[N, :4] = new_points[0, :4] # CLOSE THE LOOP
         ## Find s for each point
-        dis = np.zeros(N+1)
-        dis[1:] = np.linalg.norm(new_points[1:, :2] - new_points[:-1, :2], axis=1) # (n-1)
-        new_points[:, 4] = np.cumsum(dis)
+        new_points[:, 4] = self.get_cum_distance(new_points[:, :2])
         self.centerline_points = new_points
-        self.centerline_xy = self.centerline_xy = self.centerline_points[:, :2]
+        self.centerline_xy = self.centerline_points[:, :2]
         self.length = self.centerline_points[-1, 4]
         ## Fit spline y = f(s), x = f(s)
         self.x_spline = Spline(self.centerline_points[:, 4], self.centerline_points[:, 0])
         self.y_spline = Spline(self.centerline_points[:, 4], self.centerline_points[:, 1])
-        np.savetxt("map/reassigned_centerline.csv", new_points, delimiter=",")
+        if refine:
+            self.refine_uniform_waypoint()
+        np.savetxt("map/refined_centerline.csv", self.centerline_points, delimiter=",")
         return
+    
+    def get_cum_distance(self, xy:np.ndarray):
+        """
+        Get the cumulative distance of the track at a given xy of shape (N, 2)
+        """
+        dis = np.zeros(xy.shape[0])
+        dis[1:] = np.linalg.norm(xy[1:, :] - xy[:-1, :], axis=1) # (n-1)
+        return np.cumsum(dis) #(n, )
     
     def plot_spline(self):
         """
@@ -55,12 +64,23 @@ class Track:
         plt.axis("equal")
         plt.show()
         return
-    
+
     def refine_uniform_waypoint(self):
         """
         Sample new set of waypoints uniformly to step_size.
         """
-        return
+        s = np.arange(0, self.length, self.step)
+        x = self.x_spline(s)
+        y = self.y_spline(s)
+        x = np.append(x, x[0]) # close the loop
+        y = np.append(y, y[0]) # close the loop
+        xy = np.hstack([x[:, None], y[:, None]])
+        s_new = self.get_cum_distance(xy)
+        left_right_distance = self.find_width(x)
+        new_points = np.hstack([xy, left_right_distance[:], s_new[:, None]])
+        self.centerline_points = new_points
+        self.centerline_xy = self.centerline_points[:, :2]
+        self.length = self.centerline_points[-1, 4]
 
     def load_waypoints(self, csv_path: str):
         self.waypoints = csv_path
@@ -68,11 +88,12 @@ class Track:
             waypoint = np.loadtxt(f, delimiter=",") # [[x, y, left, right], ...]
         return waypoint
 
-    def update_width(self):
+    def find_width(self, xy: np.ndarray):
         """
         Update left right
         """
-        pass
+        widths = np.zeros_like(xy)
+        return widths
 
 
     def find_closest_waypoint(self, x: float, y: float, n: int = 1):
@@ -105,50 +126,48 @@ class Track:
             theta -= self.length
         while (theta < 0):
             theta += self.length
+        return theta
 
     def x_eval(self, theta: float) -> float:
-        self.wrap_theta(theta)
+        theta = self.wrap_theta(theta)
         return self.x_spline(theta)
     
     def y_eval(self, theta: float) -> float:
-        self.wrap_theta(theta)
+        theta = self.wrap_theta(theta)
         return self.y_spline(theta)
     
     def x_eval_d(self, theta: float) -> float:
-        self.wrap_theta(theta)
+        theta = self.wrap_theta(theta)
         return self.x_spline.eval_d(theta)
     
     def y_eval_d(self, theta: float) -> float:
-        self.wrap_theta(theta)
+        theta = self.wrap_theta(theta)
         return self.y_spline.eval_d(theta)
     
     def x_eval_dd(self, theta: float) -> float:
-        self.wrap_theta(theta)
+        theta = self.wrap_theta(theta)
         return self.x_spline.eval_dd(theta)
     
     def y_eval_dd(self, theta: float) -> float:
-        self.wrap_theta(theta)
+        theta = self.wrap_theta(theta)
         return self.y_spline.eval_dd(theta)
     
     def get_phi(self, theta: float) -> float:
-        self.wrap_theta(theta)
+        theta = self.wrap_theta(theta)
         dx_dtheta = self.x_eval_d(theta)
         dy_dtheta = self.y_eval_d(theta)
         return np.arctan2(dy_dtheta, dx_dtheta)
     
     def get_left_half_width(self, theta: float) -> float:
         idx = max(0, min(len(self.centerline_points) - 1, np.floor(theta / self.step)))
-        return self.centerline_points[idx, ...] # left half width (3)?
+        return self.centerline_points[idx, 2]
     
     def get_right_half_width(self, theta: float) -> float:
         idx = max(0, min(len(self.centerline_points) - 1, np.floor(theta / self.step)))
-        return self.centerline_points[idx, ...]
+        return self.centerline_points[idx, 3]
     
     def set_half_width(self, theta: float, left: float, right: float):
         idx = max(0, min(len(self.centerline_points) - 1, np.floor(theta / self.step)))
-        ##########
-        # centerline columns
-        ##########
         self.centerline_points[idx, 2] = left
         self.centerline_points[idx, 3] = right
 
@@ -163,6 +182,6 @@ class Track:
         return 1.0 / self.get_centerline_points_curvature(theta)
         
 if __name__ == "__main__":
-    a = np.cumsum(np.ones(10), axis=0)
+    a = np.arange(0, 1, 1/3)
     print(a)
     pass
