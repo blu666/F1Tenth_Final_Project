@@ -66,10 +66,10 @@ class LMPC(Node):
         self.terminal_state_pred = None
         
         # Params: TODO: set_params
-        self.car = load_default_car_params()
+        self.car: CarParams = load_default_car_params()
         self.nx = 6 # dim of state space [x, y, yaw, v, omega, slip]
         self.nu = 2 # dim of control space
-        self.ts = 0.01 # time steps
+        self.ts = 0.05 # time steps
 
         # Load SS from data
         self.init_SS("map/inital_ss.csv")
@@ -299,16 +299,34 @@ class LMPC(Node):
         """
         yaw = x_op[2]
         v = x_op[3]
-        accel = u_op[0]
-        steer = u_op[1]
         yaw_dot = x_op[4]
         slip_angle = x_op[5]
+        accel = u_op[0]
+        steer = u_op[1]
+        
         
         dynamics = np.zeros(6)
         
-        A = np.zeros((self.nx, self.nx))
-        B = np.zeros((self.nx, self.nu))
+        A = np.zeros((self.nx, self.nx), dtype=float)
+        B = np.zeros((self.nx, self.nu), dtype=float)
         if use_dynamics:
+            g = 9.81
+            # rear_val = g * self.car.l_r - accel * self.car.h_cg
+            # front_val = g * self.car.l_f + accel * self.car.h_cg
+
+            # dynamics[0] = v * np.cos(yaw+slip_angle)
+            # dynamics[1] = v * np.sin(yaw+slip_angle)
+            # dynamics[2] = yaw_dot
+            # dynamics[3] = accel
+            # dynamics[4] = (self.car.friction_coeff * self.car.mass / (self.car.I_z * self.car.wheelbase)) \
+            #     * (self.car.l_f * self.car.cs_f * steer * rear_val + \
+            #         slip_angle * (self.car.l_r * self.car.cs_r * front_val - self.car.l_f * self.car.cs_f * rear_val) \
+            #             - yaw_dot/v * (math.pow(self.car.l_f, 2) * self.car.cs_f * rear_val\
+            #                 + math.pow(self.car.l_r, 2) * self.car.cs_r * front_val))
+            # dynamics[5] = (self.car.friction_coeff / (v * (self.car.l_r + self.car.l_f))) \
+            #     * (self.car.cs_f * steer * rear_val - slip_angle * (self.car.cs_r * front_val + self.car.cs_f * rear_val) \
+            #         + (yaw_dot/v) * (self.car.cs_r * self.car.l_r * front_val - self.car.cs_f * self.car.l_f * rear_val)) \
+            #             - yaw_dot
             g = 9.81
             rear_val = g * self.car.l_r - accel * self.car.h_cg
             front_val = g * self.car.l_f + accel * self.car.h_cg
@@ -317,16 +335,14 @@ class LMPC(Node):
             dynamics[1] = v * np.sin(yaw+slip_angle)
             dynamics[2] = yaw_dot
             dynamics[3] = accel
-            dynamics[4] = (self.car.friction_coeff * self.car.mass / (self.car.I_z * self.car.wheelbase)) \
-                * (self.car.l_f * self.car.cs_f * steer * rear_val + \
-                    slip_angle * (self.car.l_r * self.car.cs_r * front_val - self.car.l_f * self.car.cs_f * rear_val) \
-                        - yaw_dot/v * (math.pow(self.car.l_f, 2) * self.car.cs_f * rear_val\
-                            + math.pow(self.car.l_r, 2) * self.car.cs_r * front_val))
-            dynamics[5] = (self.car.friction_coeff / (v * (self.car.l_r + self.car.l_f))) \
-                * (self.car.cs_f * steer * rear_val - slip_angle * (self.car.cs_r * front_val + self.car.cs_f * rear_val) \
-                    + (yaw_dot/v) * (self.car.cs_r * self.car.l_r * front_val - self.car.cs_f * self.car.l_f * rear_val)) \
-                        - yaw_dot
-            
+            dynamics[4] = (self.car.friction_coeff * self.car.mass / (self.car.I_z * self.car.wheelbase)) *\
+                        (self.car.l_f * self.car.cs_f * steer * (rear_val) +\
+                        slip_angle * (self.car.l_r * self.car.cs_r * (front_val) - self.car.l_f * self.car.cs_f * (rear_val)) -\
+                        (yaw_dot/v) * (pow(self.car.l_f, 2) * self.car.cs_f * (rear_val) + pow(self.car.l_r, 2) * self.car.cs_r * (front_val)))
+            dynamics[5] = (self.car.friction_coeff / (v * (self.car.l_r + self.car.l_f))) *\
+                        (self.car.cs_f * steer * rear_val - slip_angle * (self.car.cs_r * front_val + self.car.cs_f * rear_val) +\
+                                (yaw_dot/v) * (self.car.cs_r * self.car.l_r * front_val - self.car.cs_f * self.car.l_f * rear_val)) - yaw_dot   
+                
             dfyawdot_dv = (self.car.friction_coeff * self.car.mass / (self.car.I_z * self.car.wheelbase))\
                 * (math.pow(self.car.l_f, 2) * self.car.cs_f * (rear_val) + math.pow(self.car.l_r, 2) * self.car.cs_r * (front_val))\
                 * yaw_dot / math.pow(v, 2)
@@ -362,13 +378,17 @@ class LMPC(Node):
             A[0, 2] = -v * np.sin(yaw+slip_angle)
             A[0, 3] = np.cos(yaw+slip_angle)
             A[0, 5] = -v * np.sin(yaw+slip_angle)
+            
             A[1, 2] = v * np.cos(yaw+slip_angle)
             A[1, 3] = np.sin(yaw+slip_angle)
             A[1, 5] = v * np.cos(yaw+slip_angle)
+            
             A[2, 4] = 1
+            
             A[4, 3] = dfyawdot_dv
             A[4, 4] = dfyawdot_dyawdot
             A[4, 5] = dfyawdot_dslip
+            
             A[5, 3] = dfslip_dv
             A[5, 4] = dfslip_dyawdot
             A[5, 5] = dfslip_dslip
