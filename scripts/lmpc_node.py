@@ -141,15 +141,28 @@ class LMPC(Node):
     def init_SS(self, data_file: str):
         # line 244: init_SS_from_data
         # Read data from csv file
-        with open(data_file, 'r') as f:
-            data = np.loadtxt(f, delimiter=',') # (time_steps, 8)
-            # time, x, y, yaw, v, acc_cmd, steer_cmd, s_curr
-        
+        self.SS = []
+        header = "time, x, y, yaw, vel, acc_cmd, steer_cmd, s, lap"
+        data: np.ndarray = np.loadtxt(data_file, delimiter=',', header=header) # (time_steps, 8)
+        traj = []
+        prev_time = -1
+        iteration = 0
         for i in range(data.shape[0]):
-            pass
-        # check if starting new lab
-        # TODO: Design storing structure for SS
-        pass
+            sample = SS_Sample()
+            sample.time = int(data[i, 0])
+            sample.x = np.array([data[i, 1], data[i, 2], data[i, 3], data[i, 4], 0, 0]) # [x, y, yaw, v, yaw_dot, slip_angle]
+            sample.u = np.array([data[i, 5], data[i, 6]]) # [accel, steer]
+            sample.s = data[i, 7]
+            if sample.time < prev_time:
+                iteration += 1
+                traj = self.update_cost_to_go(traj)
+                self.SS.append(deepcopy(traj))
+                traj = []
+            sample.iter = iteration
+            traj.append(sample)
+            prev_time = sample.time
+        traj = self.update_cost_to_go(traj)
+        self.SS.append(deepcopy(traj))
 
     def select_terminal_candidate(self):
         # line 456: select_terminal_candidate
@@ -230,6 +243,7 @@ class LMPC(Node):
         trajectory[-1].cost = 0
         for i in range(len(trajectory)-2, -1, -1):
             trajectory[i].cost = trajectory[i+1].cost + 1
+        return trajectory
 
     def track_to_global(self, e_y, e_yaw, s):
         # line 557: track_to_global

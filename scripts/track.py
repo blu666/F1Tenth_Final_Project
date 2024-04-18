@@ -14,7 +14,7 @@ from spline import Spline
 
 class Track:
     def __init__(self, centerline_points: str):
-        self.centerline_points = self.load_waypoints(centerline_points) # (N, 5) [x, y, left, right, theta], should form a loop
+        self.centerline_points = self.load_waypoints(centerline_points) # (N, 5) [x, y, left, right, theta]
         self.centerline_xy = self.centerline_points[:, :2]
         self.x_spline: Spline = None
         self.y_spline: Spline = None
@@ -23,10 +23,15 @@ class Track:
 
     def reset_starting_point(self, x: float, y: float, refine: bool = True):
         """
-        The order of the waypoints should be rearranged, so that the closest waypoint to the starting position is the first waypoint.
+        The order of the waypoints should be rearranged, 
+        so that the closest waypoint to the starting position is the first waypoint.
+        
+        NOTE:
+        (1) if calling this function we assume the centerline_point initially is not a closed loop, 
+            hence need to +1 in size and add starting point to the end
         """
         ## Rearange waypoints
-        N = self.centerline_points.shape[0] # NOTE: if calling this function we assume the centerline_point initially is not a closed loop, hence +1 in size
+        N = self.centerline_points.shape[0] # NOTE: (1)
         new_points = np.zeros((N+1, 5))
         _, starting_index = self.find_closest_waypoint(x, y)
         new_points[:N, :4] = np.roll(self.centerline_points[:, :4], -starting_index, axis=0)
@@ -90,11 +95,10 @@ class Track:
 
     def find_width(self, xy: np.ndarray):
         """
-        Update left right
+        Update left right TODO
         """
         widths = np.zeros_like(xy)
         return widths
-
 
     def find_closest_waypoint(self, x: float, y: float, n: int = 1):
         """

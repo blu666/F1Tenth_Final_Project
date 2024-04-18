@@ -53,7 +53,7 @@ class RecordSS(Node):
         if self.is_finished:
             return
         self.get_logger().info("Recording lap: {} at time: {}".format(self.lap, self.time))
-        self.u = np.array([drive_msg.drive.speed, drive_msg.drive.steering_angle], dtype=np.float32)
+        self.u = np.array([drive_msg.drive.acceleration, drive_msg.drive.steering_angle], dtype=np.float32)
         pos = np.array([self.odom.pose.pose.position.x,
                     self.odom.pose.pose.position.y])
         heading = R.from_quat(np.array([self.odom.pose.pose.orientation.x,
@@ -80,7 +80,7 @@ class RecordSS(Node):
         self.time += 1
 
     def save_record(self, savepath: str):
-        np.savetxt(savepath, self.record, delimiter=",", header="##time, x, y, yaw, vel, speed_cmd, steer_cmd, s, lap")
+        np.savetxt(savepath, self.record, delimiter=",", header="time, x, y, yaw, vel, acc_cmd, steer_cmd, s, lap")
         self.get_logger().info("Initial SS saved to {}".format(savepath))
         return    
 
@@ -89,7 +89,9 @@ class RecordSS(Node):
         self.odom = pose_msg
         if self.reset_startingline:
             self.get_logger().info("Reset starting line")
-            self.track.reset_starting_point(pose_msg.pose.pose.position.x, pose_msg.pose.pose.position.y)
+            self.track.reset_starting_point(pose_msg.pose.pose.position.x,
+                                            pose_msg.pose.pose.position.y,
+                                            refine=False)
             self.reset_startingline = False
 
     def map_callback(self, map_msg: OccupancyGrid):
