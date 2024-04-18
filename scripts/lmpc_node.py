@@ -72,7 +72,7 @@ class LMPC(Node):
         self.ts = 0.01 # time steps
 
         # Load SS from data
-        self.init_SS("map/levine/initial_ss.csv")
+        self.init_SS("map/levine/inital_ss.csv")
         
         # setup osqp
         self.osqp = OSQP()
@@ -159,11 +159,12 @@ class LMPC(Node):
         prev_time = -1
         iteration = 0
         for i in range(data.shape[0]):
-            sample = SS_Sample()
-            sample.time = int(data[i, 0])
-            sample.x = np.array([data[i, 1], data[i, 2], data[i, 3], data[i, 4], 0, 0]) # [x, y, yaw, v, yaw_dot, slip_angle]
-            sample.u = np.array([data[i, 5], data[i, 6]]) # [accel, steer]
-            sample.s = data[i, 7]
+            sample = SS_Sample(time=int(data[i, 0]), 
+                               x=np.array([data[i, 1], data[i, 2], data[i, 3], data[i, 4], 0, 0]), 
+                               u=np.array([data[i, 5], data[i, 6]]), 
+                               s=data[i, 7], 
+                               iter=iteration,
+                               cost=0)
             if sample.time < prev_time:
                 iteration += 1
                 traj = self.update_cost_to_go(traj)
@@ -418,7 +419,7 @@ class LMPC(Node):
 
     def solve_MPC(self, terminal_candidate):
         # line 693: solve_MPC
-        s_t = self.Track.find_theta(terminal_candidate)
+        s_t = self.Track.find_theta(terminal_candidate[:2])
 
         convex_ss = self.select_convex_ss(self.iter-2, self.iter-1, s_t)
 
@@ -456,7 +457,7 @@ class LMPC(Node):
         for i in range(self.car.N+1):
             x_k_ref = self.QPSol[i*self.nx : i*self.nx+self.nx]
             u_k_ref = self.QPSol[(self.car.N+1)*self.nx+i*self.nu : (self.car.N+1)*self.nx+i*self.nu+self.nu]
-            s_ref = self.Track.find_theta(x_k_ref[0], x_k_ref[1])
+            s_ref = self.Track.find_theta(x_k_ref[:2])
 
             Ad, Bd, hd = self.get_linearized_dynamics(Ad, Bd, hd, x_k_ref, u_k_ref, self.use_dynamics)
 
