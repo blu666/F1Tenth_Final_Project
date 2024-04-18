@@ -20,11 +20,14 @@ class PurePursuit(Node):
     def __init__(self):
         super().__init__('pure_pursuit_node')
 
+        # self.lookahead_facto
         self.lookahead = 1.0
-
+        self.v = 2.0
+        self.p = 0.5
+        self.d = 0.01
         
-        # self.create_subscription(Odometry, '/ego_racecar/odom', self.pose_callback, 10)
-        self.create_subscription(Odometry, '/pf/pose/odom', self.pose_callback, 10)
+        self.create_subscription(Odometry, '/ego_racecar/odom', self.pose_callback, 10)
+        # self.create_subscription(Odometry, '/pf/pose/odom', self.pose_callback, 10)
         self.waypoints_publisher = self.create_publisher(MarkerArray, '/pure_pursuit/waypoints', QoSProfile(depth=10, durability=QoSDurabilityPolicy.TRANSIENT_LOCAL, reliability=QoSReliabilityPolicy.RELIABLE))
         self.goalpoint_publisher = self.create_publisher(Marker, '/pure_pursuit/goalpoint', QoSProfile(depth=10, durability=QoSDurabilityPolicy.TRANSIENT_LOCAL))
         self.testpoint_publisher = self.create_publisher(MarkerArray, '/pure_pursuit/testpoints', QoSProfile(depth=10, durability=QoSDurabilityPolicy.TRANSIENT_LOCAL))
@@ -34,9 +37,9 @@ class PurePursuit(Node):
         self.map_to_car_rotation = None
         self.map_to_car_translation = None
 
-        waypoints = self.load_waypoints("waypoints/race1_gentle.csv")
+        waypoints = self.load_waypoints("map/levine/levine_slam_center_map_sparse.csv")
         self.waypoints = waypoints[:, :2] # x, y
-        self.params = waypoints[:, 2:] #  v, vel percent, look_ahead, p, d, index
+        # self.params = waypoints[:, 2:] #  v, vel percent, look_ahead, p, d, index
         
         ## Scale global speed
         # velocities = self.params[:, 0].copy()
@@ -88,7 +91,7 @@ class PurePursuit(Node):
         local_dist = np.linalg.norm(self.waypoints - current_pos, axis=1)
         min_local_idx = np.argmin(local_dist)
         
-        return self.interpolate_waypoints(two_wps, current_pos), self.params[min_local_idx]
+        return self.interpolate_waypoints(two_wps, current_pos)# , self.params[min_local_idx]
     
 
     def interpolate_waypoints(self, two_wps, curr_pos):
@@ -118,7 +121,7 @@ class PurePursuit(Node):
         # find current waypoint by projecting the car forward by lookahead distance, then finding the closest waypoint to that projected position
         # depending on the distance of the closest waypoint to current position, we will find two waypoints that sandwich the current position plus lookahead distance
         # then we interpolate between these two waypoints to find the current waypoint
-        current_waypoint, current_params = self.find_current_waypoint(current_pos, current_heading)
+        current_waypoint = self.find_current_waypoint(current_pos, current_heading)
         self.publish_goalpoint(current_waypoint)
     
         # transform the current waypoint to the vehicle frame of reference
@@ -129,16 +132,17 @@ class PurePursuit(Node):
         wp_car_frame = (np.array([current_waypoint[0], current_waypoint[1], 0]) - self.map_to_car_translation)
         wp_car_frame = wp_car_frame @ self.map_to_car_rotation.as_matrix()
 
-        self.lookahead = current_params[2] 
+        # self.lookahead = current_params[2] 
         curvature = 2 * wp_car_frame[1] / self.lookahead**2
         
         drive_msg = AckermannDriveStamped()
         drive_msg.header.stamp = self.get_clock().now().to_msg()
         drive_msg.header.frame_id = "ego_racecar/base_link"
-        drive_msg.drive.steering_angle = current_params[3] * curvature + current_params[4] * (self.last_curve - curvature)
+        drive_msg.drive.steering_angle = self.p * curvature + self.d * (self.last_curve - curvature)
         pf_speed = np.linalg.norm(np.array([pose_msg.twist.twist.linear.x, pose_msg.twist.twist.linear.y]))
-        drive_msg.drive.speed = self.interpolate_vel(pf_speed, current_params[0] * current_params[1])
-        self.get_logger().info("pf speed: {} seg speed: {} command: {}".format(pf_speed, current_params[0] * current_params[1], drive_msg.drive.speed))
+        drive_msg.drive.speed = self.interpolate_vel(pf_speed, self.v)
+        # self.get_logger().info("pf speed: {} seg speed: {} command: {}".format(pf_speed, current_params[0] * current_params[1], drive_msg.drive.speed))
+        self.get_logger().info("Steering angle: {} Speed: {}".format(drive_msg.drive.steering_angle, drive_msg.drive.speed))
         self.drive_publisher.publish(drive_msg)
         # t1 = Time.from_msg(drive_msg.header.stamp)
         # self.get_logger().info("Time taken: {}".format((t1 - t0).nanoseconds / 1e9))
