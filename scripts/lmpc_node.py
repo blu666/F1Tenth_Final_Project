@@ -23,6 +23,7 @@ from sensor_msgs.msg import PointCloud
 from car_params import CarParams, load_default_car_params
 from track import Track ## TODO: implement Track class
 from scipy import sparse
+import cvxpy as cp
 from osqp import OSQP
 
 
@@ -46,7 +47,7 @@ class LMPC(Node):
         
         self.first_run = True
         self.SS = None
-        self.use_dynamics = True
+        self.use_dynamics = False
 
         self.Track = Track("map/refined_centerline.csv", initialized=True)
 
@@ -127,7 +128,7 @@ class LMPC(Node):
         self.s_prev = self.s_curr
         self.time += 1
         self.first_run = False
-        self.get_logger().info("LMPC Run iter: {}, time: {0}".format(self.iter, self.time))
+        self.get_logger().info("LMPC Run iter: {}, time: {}".format(self.iter, self.time))
 
     def odom_callback(self, pose_msg: Odometry):
         current_pose = np.array([pose_msg.pose.pose.position.x, pose_msg.pose.pose.position.y])
@@ -185,13 +186,13 @@ class LMPC(Node):
 
     def add_point(self):
         # line 465: add_point
-        point = SS_Sample()
-
-        point.x = np.array([self.car_pos[0], self.car_pos[1], self.yaw, self.vel, self.yawdot, self.slip_angle])
-        point.u = self.QPSol[self.nx*(self.car.N+1):self.nx*(self.car.N+1)+self.nu]
-        point.s = self.s_curr
-        point.iter = self.iter
-        point.time = self.time
+        point = SS_Sample(x=np.array([self.car_pos[0], self.car_pos[1], self.yaw, self.vel, self.yawdot, self.slip_angle]),
+                            u=np.array([self.QPSol[self.nx*(self.car.N+1)], self.QPSol[self.nx*(self.car.N+1)+1]]),
+                            s=self.s_curr,
+                            iter=self.iter,
+                            time=self.time,
+                            cost=0
+                          )
 
 
     def select_convex_ss(self, iter_start, iter_end, s):
@@ -577,6 +578,20 @@ class LMPC(Node):
 
         num_constraint_sofar += self.nx
 
+        # -inf <= -x_N + 1 + linear_combination(lambda) - s_t <= 0
+        for i in range(2*self.car.K_NEAR):
+            for state_idx in range(self.nx):
+                constraintMatrix[num_constraint_sofar + state_idx, (self.car.N+1)*self.nx + self.car.N*self.nu + self.car.N+1 + i] = convex_ss[i].x[state_idx]
+        for state_idx in range(self.nx):
+            constraintMatrix[num_constraint_sofar + state_idx, self.car.N*self.nx + state_idx] = -1.0
+            constraintMatrix[num_constraint_sofar + state_idx, (self.car.N+1)*self.nx + self.car.N*self.nu + self.car.N+1 + 2*self.car.K_NEAR + state_idx] = -1.0
+
+            lower[num_constraint_sofar + state_idx] = -np.inf
+            upper[num_constraint_sofar + state_idx] = 0.0
+
+        num_constraint_sofar += self.nx
+
+
         # sum of lambda = 1
         for i in range(2*self.car.K_NEAR):
             constraintMatrix[num_constraint_sofar, (self.car.N+1)*self.nx + self.car.N*self.nu + self.car.N+1 + i] = 1.0
@@ -605,16 +620,37 @@ class LMPC(Node):
 
         H_t = HessianMatrix.transpose()
         sparse_I = sparse.eye((self.car.N+1)*self.nx + self.car.N*self.nu + self.car.N+1 + 2*self.car.K_NEAR + self.nx)
-
+        # print("hessian", HessianMatrix)
         HessianMatrix = 0.5 * (HessianMatrix + H_t) + 1e-7 * sparse_I
         
         # self.osqp.update(q=gradient, l=lower, u=upper)
         # self.osqp.update(Px=sparse.triu(HessianMatrix), Ax=constraintMatrix)
+        
+        # print("gradient", gradient)
         self.osqp = OSQP()
-        self.osqp.setup(P=HessianMatrix, q=gradient, A=constraintMatrix, l=lower, u=upper, warm_start=True, polish=True)
+        self.osqp.setup(P=HessianMatrix, q=gradient, A=constraintMatrix, l=lower, u=upper)#, warm_start=True, polish=True)
         results = self.osqp.solve()
-        print(results.x, results.info.status, results.dual_inf_cert)
+        if results.info.status_val != 1:
+            print("Error: OSQP failed to solve")
+            exit(1)
+        # y = results.dual_inf_cert
+        # print(np.min(y), np.max(y))
+        # print()
+        # print(results.x, results.info.status, results.dual_inf_cert)
         self.QPSol = results.x
+
+        # HessianMatrix = cp.Parameter(HessianMatrix.shape, value=HessianMatrix.toarray())
+        # gradient = cp.Parameter(gradient.shape, value=gradient)
+        # constraintMatrix = cp.Parameter(constraintMatrix.shape, value=constraintMatrix.toarray())
+        # lower = cp.Parameter(lower.shape, value=lower)
+        # upper = cp.Parameter(upper.shape, value=upper)
+        # x = cp.Variable((self.car.N+1)*self.nx + self.car.N*self.nu + self.car.N+1 + 2*self.car.K_NEAR + self.nx)
+        # objective = cp.Minimize(0.5 * cp.quad_form(x, HessianMatrix) + gradient @ x)
+        # constraints = [constraintMatrix @ x <= upper, constraintMatrix @ x >= lower]
+        # prob = cp.Problem(objective, constraints)
+        # result = prob.solve()
+        # self.QPSol = x.value
+
 
         
 
