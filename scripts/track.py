@@ -2,13 +2,13 @@ import numpy as np
 from dataclasses import dataclass
 
 
-@dataclass
-class Waypoint:
-    x: float
-    y: float
-    theta: float
-    left: float
-    right: float
+# @dataclass
+# class Waypoint:
+#     x: float
+#     y: float
+#     theta: float
+#     left: float
+#     right: float
 
 
 class Track:
@@ -49,6 +49,10 @@ class Track:
             # [[x, y, left, right, theta], ...]
             # TODO: [[x, y]], and refine.
         return waypoint
+
+    def initialize_width(self):
+        pass
+
 
     def find_closest_waypoint(self, x: float, y: float, n: int = 1):
         """
