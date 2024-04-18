@@ -5,11 +5,7 @@ import math
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import LaserScan
-# from geometry_msgs.msg import PoseStamped
-# from geometry_msgs.msg import PointStamped
-# from geometry_msgs.msg import Pose
 from geometry_msgs.msg import Point
-# from nav_msgs.msg import Odometry
 from ackermann_msgs.msg import AckermannDriveStamped, AckermannDrive
 from nav_msgs.msg import OccupancyGrid, Odometry
 
@@ -27,7 +23,7 @@ from rclpy.parameter import Parameter, ParameterType
 from sensor_msgs.msg import PointCloud
 from car_params import CarParams
 from track import Track ## TODO: implement Track class
-# from rrt_star import RRT_Star
+from scipy import sparse
 
 
 @dataclass
@@ -54,11 +50,18 @@ class LMPC(Node):
         self.SS = None
         self.use_dynamics = True
 
+        self.Track = Track("map/reassigned_centerline.csv")
+
         # global variables
         self.s_prev = 0
         self.s_curr = 0
         self.time = 0
         self.iter = 0
+        self.car_pos = np.zeros(2)
+        self.yaw = 0
+        self.vel = 0
+        self.yawdot = 0
+        self.slip_angle = 0
 
         self.curr_traj = []
         self.QPSol = None
@@ -69,9 +72,9 @@ class LMPC(Node):
         self.nx = 6 # dim of state space [x, y, yaw, v, omega, slip]
         self.nu = 2 # dim of control space
         self.ts = 0.01 # time step
-        self.N = 16 # prediction horizon
-        self.VEL_THRESH = 0.8
-        self.K_NEAR = 16
+        # self.car.N = 16 # prediction horizon
+        # self.car.VEL_THRESH = 0.8
+        # self.car.K_NEAR = 16
 
     def lmpc_run(self):
         # line 387: run
@@ -80,7 +83,11 @@ class LMPC(Node):
         """
         if self.first_run:
             # reset QP solution
-            pass
+            self.QPSol = np.zeros((self.car.N+1)*self.nx + self.car.N*self.nu + self.nx*(self.car.N+1) + 2*(self.car.K_NEAR+1))
+            for i in range(self.car.N+1):
+                self.QPSol[i*self.nx:i*self.nx+self.nx] = self.SS[self.iter][i].x
+            for i in range(self.car.N):
+                self.QPSol[(self.car.N+1)*self.nx+i*self.nu:(self.car.N+1)*self.nx+i*self.nu+self.nu] = self.SS[self.iter][i].u
 
         # check if new lap
         ...
@@ -102,15 +109,15 @@ class LMPC(Node):
         self.map_to_car_translation = np.array([pose_msg.pose.pose.position.x, pose_msg.pose.pose.position.y, pose_msg.pose.pose.position.z])
         self.map_to_car_rotation = R.from_quat([pose_msg.pose.pose.orientation.x, pose_msg.pose.pose.orientation.y, pose_msg.pose.pose.orientation.z, pose_msg.pose.pose.orientation.w])
 
-        s_curr = Track.findTheta(current_pose[0], current_pose[1], 0, True)
-        yaw = ...
-        vel = ...
-        yawdot = ...
-        slip_angle = ...
+        s_curr = self.Track.findTheta(current_pose[0], current_pose[1], 0, True)
+        self.yaw = ...
+        self.vel = ...
+        self.yawdot = ...
+        self.slip_angle = ...
 
-        if (not self.use_dynamics) and (vel > self.VEL_THRESH):
+        if (not self.use_dynamics) and (self.vel > self.car.VEL_THRESH):
             self.use_dynamics = True
-        elif(self.use_dynamics) and (vel < self.VEL_THRESH):
+        elif(self.use_dynamics) and (self.vel < self.car.VEL_THRESH):
             self.use_dynamics = False
         # if (vel > 4.5):
 
@@ -132,7 +139,7 @@ class LMPC(Node):
     def select_terminal_candidate(self):
         # line 456: select_terminal_candidate
         if self.first_run:
-            return self.SS[-1][self.N].x
+            return self.SS[-1][self.car.N].x
         else:
             return self.terminal_state_pred
 
@@ -140,8 +147,8 @@ class LMPC(Node):
         # line 465: add_point
         point = SS_Sample()
 
-        point.x = ...
-        point.u = ...
+        point.x = np.array([self.car_pos[0], self.car_pos[1], self.yaw, self.vel, self.yawdot, self.slip_angle])
+        point.u = self.QPSol[self.nx*(self.car.N+1):self.nx*(self.car.N+1)+self.nu]
         point.s = self.s_curr
         point.iter = self.iter
         point.time = self.time
@@ -154,12 +161,12 @@ class LMPC(Node):
             nearest_idx = self.find_nearest_point(self.SS[it], s)
             lap_cost = self.SS[it][0].cost
 
-            if self.K_NEAR % 2:
-                start_idx = nearest_idx - (self.K_NEAR-1) // 2
-                end_idx = nearest_idx + (self.K_NEAR-1) // 2
+            if self.car.K_NEAR % 2:
+                start_idx = nearest_idx - (self.car.K_NEAR-1) // 2
+                end_idx = nearest_idx + (self.car.K_NEAR-1) // 2
             else:
-                start_idx = nearest_idx - self.K_NEAR // 2 + 1
-                end_idx = nearest_idx + self.K_NEAR // 2
+                start_idx = nearest_idx - self.car.K_NEAR // 2 + 1
+                end_idx = nearest_idx + self.car.K_NEAR // 2
 
             curr_set = []
             if start_idx < 0:
@@ -168,7 +175,7 @@ class LMPC(Node):
                     curr_set[-1].cost += lap_cost
                 for i in range(0, end_idx):
                     curr_set.append(self.SS[it][i])
-                if len(curr_set) != self.K_NEAR:
+                if len(curr_set) != self.car.K_NEAR:
                     print("Error: curr_set length not equal to K_NEAR")
             elif end_idx+1 >= len(self.SS[it]):
                 for i in range(start_idx, len(self.SS[it])):
@@ -176,7 +183,7 @@ class LMPC(Node):
                     curr_set[-1].cost += lap_cost
                 for i in range(0, end_idx - len(self.SS[it])):
                     curr_set.append(self.SS[it][i])
-                if len(curr_set) != self.K_NEAR:
+                if len(curr_set) != self.car.K_NEAR:
                     print("Error: curr_set length not equal to K_NEAR")
             else:
                 for i in range(start_idx, end_idx+1):
@@ -210,10 +217,10 @@ class LMPC(Node):
 
     def track_to_global(self, e_y, e_yaw, s):
         # line 557: track_to_global
-        dx_ds = Track.x_eval_d(s)
-        dy_ds = Track.y_eval_d(s)
+        dx_ds = self.Track.x_eval_d(s)
+        dy_ds = self.Track.y_eval_d(s)
 
-        proj = np.array([Track.x_eval(s), Track.y_eval(s)])
+        proj = np.array([self.Track.x_eval(s), self.Track.y_eval(s)])
         temp = np.array([-dy_ds, dx_ds])
         temp = temp / np.linalg.norm(temp)
         pos = proj + temp * e_y
@@ -222,11 +229,11 @@ class LMPC(Node):
 
     def global_to_track(self, x, y, yaw, s):
         # line 543: global_to_track
-        x_proj = Track.x_eval(s)
-        y_proj = Track.y_eval(s)
+        x_proj = self.Track.x_eval(s)
+        y_proj = self.Track.y_eval(s)
         e_y = np.sqrt((x - x_proj)**2 + (y - y_proj)**2)
-        dx_ds = Track.x_eval_d(s)
-        dy_ds = Track.y_eval_d(s)
+        dx_ds = self.Track.x_eval_d(s)
+        dy_ds = self.Track.y_eval_d(s)
         if dx_ds * (y - y_proj) - dy_ds * (x - x_proj) > 0:
             e_y = -e_y
         e_yaw = yaw - np.arctan2(dy_ds, dx_ds)
@@ -372,7 +379,46 @@ class LMPC(Node):
 
     def solve_MPC(self, terminal_candidate):
         # line 693: solve_MPC
-        s_t = 
+        s_t = self.Track.find_theta(terminal_candidate)
+
+        convex_ss = self.select_convex_ss(self.iter-2, self.iter-1, s_t)
+
+        HessianMatrix = sparse.csr_matrix((self.car.N+1)*self.nx + self.car.N*self.nu + self.car.N+1 + 2*self.car.K_NEAR + self.nx, 
+                                          (self.car.N+1)*self.nx + self.car.N*self.nu + self.car.N+1 + 2*self.car.K_NEAR + self.nx)
+        
+        constraintMatrix = sparse.csr_matrix((self.car.N+1)*self.nx + 2*(self.car.N+1) + self.car.N*self.nu + self.car.N+1 + self.car.N+1 + 2*self.car.K_NEAR + 2*self.nx + 1,
+                                             (self.car.N+1)*self.nx + self.car.N*self.nu + self.car.N+1 + 2*self.car.K_NEAR + self.nx)
+        
+        gradient = np.zeros((self.car.N+1)*self.nx + self.car.N*self.nu + self.car.N+1 + 2*self.car.K_NEAR + self.nx)
+
+        lower = np.zeros((self.car.N+1)*self.nx + 2*(self.car.N+1) + self.car.N*self.nu + self.car.N+1 + self.car.N+1 + 2*self.car.K_NEAR + 2*self.nx + 1)
+        upper = np.zeros((self.car.N+1)*self.nx + 2*(self.car.N+1) + self.car.N*self.nu + self.car.N+1 + self.car.N+1 + 2*self.car.K_NEAR + 2*self.nx + 1)
+
+        x_k_ref = np.zeros((self.nx, 1))
+        u_k_ref = np.zeros((self.nu, 1))
+        Ad = np.zeros((self.nx, self.nx))
+        Bd = np.zeros((self.nx, self.nu))
+        x0 = np.zeros((self.nx, 1))
+        hd = np.zeros((self.nx, 1))
+
+        if self.use_dynamics:
+            x0 = np.array([self.car_pos[0], self.car_pos[1], self.yaw, self.vel, self.yaw_dot, self.slip_angle])
+        else:
+            x0 = np.array([self.car_pos[0], self.car_pos[1], self.yaw, self.vel, 0.0, 0.0])
+        
+        for i in range(len(convex_ss)):
+            convex_ss[i].x[2] = self.wrap_angle(convex_ss[i].x[2], x0[2])
+        
+        for i in range(self.car.N):
+            # line 726
+            # wrap angle for previous QPSolution
+            self.QPSol[i*self.nx+2] = self.wrap_angle(self.QPSol[i*self.nx+2], x0[2])
+
+        for i in range(self.car.N+1):
+            x_k_ref = self.QPSol[i*self.nx : i*self.nx+self.nx]
+            u_k_ref = self.QPSol[(self.car.N+1)*self.nx+i*self.nu : (self.car.N+1)*self.nx+i*self.nu+self.nu]
+            s_ref = self.Track.find_theta(x_k_ref[0], x_k_ref[1])
+
 
     def apply_control(self):
         # line 938: apply_control
