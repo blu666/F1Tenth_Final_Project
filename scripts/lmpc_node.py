@@ -49,19 +49,6 @@ class LMPC(Node):
         self.use_dynamics = True
 
         self.Track = Track("map/refined_centerline.csv", initialized=True)
-        self.osqp = OSQP()
-
-        HessianMatrix = sparse.csr_matrix((self.car.N+1)*self.nx + self.car.N*self.nu + self.car.N+1 + 2*self.car.K_NEAR + self.nx, 
-                                          (self.car.N+1)*self.nx + self.car.N*self.nu + self.car.N+1 + 2*self.car.K_NEAR + self.nx)
-        
-        constraintMatrix = sparse.csr_matrix((self.car.N+1)*self.nx + 2*(self.car.N+1) + self.car.N*self.nu + self.car.N+1 + self.car.N+1 + 2*self.car.K_NEAR + 2*self.nx + 1,
-                                             (self.car.N+1)*self.nx + self.car.N*self.nu + self.car.N+1 + 2*self.car.K_NEAR + self.nx)
-        
-        gradient = np.zeros((self.car.N+1)*self.nx + self.car.N*self.nu + self.car.N+1 + 2*self.car.K_NEAR + self.nx)
-
-        lower = np.zeros((self.car.N+1)*self.nx + 2*(self.car.N+1) + self.car.N*self.nu + self.car.N+1 + self.car.N+1 + 2*self.car.K_NEAR + 2*self.nx + 1)
-        upper = np.zeros((self.car.N+1)*self.nx + 2*(self.car.N+1) + self.car.N*self.nu + self.car.N+1 + self.car.N+1 + 2*self.car.K_NEAR + 2*self.nx + 1)
-        self.osqp.setup(P=HessianMatrix, q=gradient, A=constraintMatrix, l=lower, u=upper, warm_start=True)
 
         # global variables
         self.s_prev = 0
@@ -85,22 +72,22 @@ class LMPC(Node):
         self.ts = 0.01 # time steps
 
         # Load SS from data
-        self.init_SS("map/levine/inital_ss.csv")
+        self.init_SS("map/inital_ss.csv")
         
         # setup osqp
-        self.osqp = OSQP()
+        # self.osqp = OSQP()
 
-        HessianMatrix = sparse.csr_matrix(((self.car.N+1)*self.nx + self.car.N*self.nu + self.car.N+1 + 2*self.car.K_NEAR + self.nx, 
-                                          (self.car.N+1)*self.nx + self.car.N*self.nu + self.car.N+1 + 2*self.car.K_NEAR + self.nx))
+        # HessianMatrix = sparse.csr_matrix(((self.car.N+1)*self.nx + self.car.N*self.nu + self.car.N+1 + 2*self.car.K_NEAR + self.nx, 
+        #                                   (self.car.N+1)*self.nx + self.car.N*self.nu + self.car.N+1 + 2*self.car.K_NEAR + self.nx))
         
-        constraintMatrix = sparse.csr_matrix(((self.car.N+1)*self.nx + 2*(self.car.N+1) + self.car.N*self.nu + self.car.N+1 + self.car.N+1 + 2*self.car.K_NEAR + 2*self.nx + 1,
-                                             (self.car.N+1)*self.nx + self.car.N*self.nu + self.car.N+1 + 2*self.car.K_NEAR + self.nx))
+        # constraintMatrix = sparse.csr_matrix(((self.car.N+1)*self.nx + 2*(self.car.N+1) + self.car.N*self.nu + self.car.N+1 + self.car.N+1 + 2*self.car.K_NEAR + 2*self.nx + 1,
+        #                                      (self.car.N+1)*self.nx + self.car.N*self.nu + self.car.N+1 + 2*self.car.K_NEAR + self.nx))
         
-        gradient = np.zeros((self.car.N+1)*self.nx + self.car.N*self.nu + self.car.N+1 + 2*self.car.K_NEAR + self.nx)
+        # gradient = np.zeros((self.car.N+1)*self.nx + self.car.N*self.nu + self.car.N+1 + 2*self.car.K_NEAR + self.nx)
 
-        lower = np.zeros((self.car.N+1)*self.nx + 2*(self.car.N+1) + self.car.N*self.nu + self.car.N+1 + self.car.N+1 + 2*self.car.K_NEAR + 2*self.nx + 1)
-        upper = np.zeros((self.car.N+1)*self.nx + 2*(self.car.N+1) + self.car.N*self.nu + self.car.N+1 + self.car.N+1 + 2*self.car.K_NEAR + 2*self.nx + 1)
-        self.osqp.setup(P=HessianMatrix, q=gradient, A=constraintMatrix, l=lower, u=upper, warm_start=True)
+        # lower = np.zeros((self.car.N+1)*self.nx + 2*(self.car.N+1) + self.car.N*self.nu + self.car.N+1 + self.car.N+1 + 2*self.car.K_NEAR + 2*self.nx + 1)
+        # upper = np.zeros((self.car.N+1)*self.nx + 2*(self.car.N+1) + self.car.N*self.nu + self.car.N+1 + self.car.N+1 + 2*self.car.K_NEAR + 2*self.nx + 1)
+        # self.osqp.setup(P=HessianMatrix, q=gradient, A=constraintMatrix, l=lower, u=upper, warm_start=True)
 
         # Create pub sub
         self.create_subscription(Odometry, 'ego_racecar/odom', self.odom_callback, 10)
@@ -210,7 +197,7 @@ class LMPC(Node):
     def select_convex_ss(self, iter_start, iter_end, s):
         # line 477: select_convex_safe_set
         convex_ss = []
-        for it in range(iter_start, iter_end):
+        for it in range(iter_start, iter_end+1):
             nearest_idx = self.find_nearest_point(self.SS[it], s)
             lap_cost = self.SS[it][0].cost
 
@@ -222,15 +209,7 @@ class LMPC(Node):
                 end_idx = nearest_idx + self.car.K_NEAR // 2
 
             curr_set = []
-            if start_idx < 0:
-                for i in range(start_idx + len(self.SS[it]), len(self.SS[it])):
-                    curr_set.append(self.SS[it][i])
-                    curr_set[-1].cost += lap_cost
-                for i in range(0, end_idx):
-                    curr_set.append(self.SS[it][i])
-                if len(curr_set) != self.car.K_NEAR:
-                    print("Error: curr_set length not equal to K_NEAR")
-            elif end_idx+1 >= len(self.SS[it]):
+            if end_idx+1 >= len(self.SS[it]):
                 for i in range(start_idx, len(self.SS[it])):
                     curr_set.append(self.SS[it][i])
                     curr_set[-1].cost += lap_cost
@@ -238,9 +217,21 @@ class LMPC(Node):
                     curr_set.append(self.SS[it][i])
                 if len(curr_set) != self.car.K_NEAR:
                     print("Error: curr_set length not equal to K_NEAR")
+                # print(2,"curr_set length: ", len(curr_set))
+            elif start_idx < 0:
+                for i in range(start_idx + len(self.SS[it]), len(self.SS[it])):
+                    curr_set.append(self.SS[it][i])
+                    curr_set[-1].cost += lap_cost
+                for i in range(0, end_idx+1):
+                    curr_set.append(self.SS[it][i])
+                if len(curr_set) != self.car.K_NEAR:
+                    print("Error: curr_set length not equal to K_NEAR")
+                # print(1,"curr_set length: ", len(curr_set))
             else:
                 for i in range(start_idx, end_idx+1):
                     curr_set.append(self.SS[it][i])
+                # print(3,"curr_set length: ", len(curr_set))
+            
             convex_ss.extend(curr_set)
         return convex_ss
 
@@ -410,10 +401,10 @@ class LMPC(Node):
         M12 = np.zeros((self.nx, self.nx), dtype=float)
         
         aux[:self.nx, :self.nx] = A
-        aux[:self.nx, self.nx:] = B
+        aux[:self.nx, self.nx:] = np.identity(self.nx)
         M = scipy.linalg.expm(aux * self.ts) # TODO: LINE 680 HOW TO COMPUTE MATRIX EXPONENTIAL
         M12 = M[:self.nx, self.nx:self.nx+self.nx]
-        h = dynamics.reshape(6, 1) - (A @ x_op + B @ u_op)
+        h = dynamics.reshape(6,) - (A @ x_op + B @ u_op)
         
         Ad = scipy.linalg.expm(A * self.ts)
         Bd = M12 @ B
@@ -455,7 +446,7 @@ class LMPC(Node):
         hd = np.zeros((self.nx, 1))
 
         if self.use_dynamics:
-            x0 = np.array([self.car_pos[0], self.car_pos[1], self.yaw, self.vel, self.yaw_dot, self.slip_angle])
+            x0 = np.array([self.car_pos[0], self.car_pos[1], self.yaw, self.vel, self.yawdot, self.slip_angle])
         else:
             x0 = np.array([self.car_pos[0], self.car_pos[1], self.yaw, self.vel, 0.0, 0.0])
         
@@ -476,43 +467,43 @@ class LMPC(Node):
 
             # Hessian entries
             if (i > 0): # cost only depends on 1 to N, not on x0
-                HessianMatrix.insert((self.car.N+1)*self.nx + self.car.N*self.nu + i, (self.car.N+1)*self.nx + self.car.N*self.nu + i, self.car.q_s)
-            if (i < self.N):
+                HessianMatrix[(self.car.N+1)*self.nx + self.car.N*self.nu + i, (self.car.N+1)*self.nx + self.car.N*self.nu + i] = self.car.q_s
+            if (i < self.car.N):
                 # for row in range(self.nu):
-                HessianMatrix.insert((self.car.N+1)*self.nx + i*self.nu, (self.car.N+1)*self.nx + i*self.nu, self.car.r_accel)
-                HessianMatrix.insert((self.car.N+1)*self.nx + i*self.nu + 1, (self.car.N+1)*self.nx + i*self.nu + 1, self.car.r_steer)
+                HessianMatrix[(self.car.N+1)*self.nx + i*self.nu, (self.car.N+1)*self.nx + i*self.nu] = self.car.r_accel
+                HessianMatrix[(self.car.N+1)*self.nx + i*self.nu + 1, (self.car.N+1)*self.nx + i*self.nu + 1] = self.car.r_steer
             
-            if (i < self.N):
+            if (i < self.car.N):
                 # Ad
                 for row in range(self.nx):
                     for col in range(self.nx):
-                        constraintMatrix.insert((i+1)*self.nx + row, i*self.nx + col, Ad[row, col])
+                        constraintMatrix[(i+1)*self.nx + row, i*self.nx + col] = Ad[row, col]
                 # Bd
                 for row in range(self.nx):
                     for col in range(self.nu):
-                        constraintMatrix.insert((i+1)*self.nx + row, (self.car.N+1)*self.nx + i*self.nu + col, Bd[row, col])
+                        constraintMatrix[(i+1)*self.nx + row, (self.car.N+1)*self.nx + i*self.nu + col] = Bd[row, col]
 
                 lower[(i+1)*self.nx : (i+1)*self.nx + self.nx] = -hd
                 upper[(i+1)*self.nx : (i+1)*self.nx + self.nx] = -hd
             
             for row in range(self.nx):
-                constraintMatrix.insert(i*self.nx + row, i*self.nx + row, -1.0)
+                constraintMatrix[i*self.nx + row, i*self.nx + row] = -1.0
             
             dx_dtheta = self.Track.x_eval_d(s_ref)
             dy_dtheta = self.Track.y_eval_d(s_ref)
 
-            constraintMatrix.insert((self.car.N+1)*self.nx + 2*i, i*self.nx, -dy_dtheta)
-            constraintMatrix.insert((self.car.N+1)*self.nx + 2*i, i*self.nx+1, dx_dtheta)
-            constraintMatrix.insert((self.car.N+1)*self.nx + 2*i, (self.car.N+1)*self.nx + self.car.N*self.nu + i, 1.0)
+            constraintMatrix[(self.car.N+1)*self.nx + 2*i, i*self.nx] = -dy_dtheta
+            constraintMatrix[(self.car.N+1)*self.nx + 2*i, i*self.nx+1] = dx_dtheta
+            constraintMatrix[(self.car.N+1)*self.nx + 2*i, (self.car.N+1)*self.nx + self.car.N*self.nu + i] = 1.0
 
-            constraintMatrix.insert((self.car.N+1)*self.nx + 2*i+1, i*self.nx, -dy_dtheta)
-            constraintMatrix.insert((self.car.N+1)*self.nx + 2*i+1, i*self.nx+1, dx_dtheta)
-            constraintMatrix.insert((self.car.N+1)*self.nx + 2*i+1, (self.car.N+1)*self.nx + self.car.N*self.nu + i, -1.0)
+            constraintMatrix[(self.car.N+1)*self.nx + 2*i+1, i*self.nx] = -dy_dtheta
+            constraintMatrix[(self.car.N+1)*self.nx + 2*i+1, i*self.nx+1] =  dx_dtheta
+            constraintMatrix[(self.car.N+1)*self.nx + 2*i+1, (self.car.N+1)*self.nx + self.car.N*self.nu + i] = -1.0
 
 
             center_p = np.array([self.Track.x_eval(s_ref), self.Track.y_eval(s_ref)])
-            left_tangent_p = center_p + self.Track.get_left_half_width(s_ref) * self.normalize_vector(np.array([-dy_dtheta, dx_dtheta]))
-            right_tangent_p = center_p + self.Track.get_right_half_width(s_ref) * self.normalize_vector(np.array([dy_dtheta, -dx_dtheta]))
+            left_tangent_p = center_p + self.Track.get_left_half_width(s_ref) * normalize_vector(np.array([-dy_dtheta, dx_dtheta]))
+            right_tangent_p = center_p + self.Track.get_right_half_width(s_ref) * normalize_vector(np.array([dy_dtheta, -dx_dtheta]))
 
             C1 = -dy_dtheta * right_tangent_p[0] + dx_dtheta * right_tangent_p[1]
             C2 = -dy_dtheta * left_tangent_p[0] + dx_dtheta * left_tangent_p[1]
@@ -526,17 +517,17 @@ class LMPC(Node):
             # u_min < u < u_max
             if (i<self.car.N):
                 for row in range(self.nu):
-                    constraintMatrix.insert((self.car.N+1)*self.nx + 2*(self.car.N+1) + i*self.nu + row, (self.car.N+1)*self.nx + i*self.nu + row, 1.0)
-                lower[(self.car.N+1)*self.nx + 2*(self.car.N+1) + i*self.nu : (self.car.N+1)*self.nx + 2*(self.car.N+1) + i*self.nu + self.nu] = np.array([-self.car.DECELRATION_MAX, -self.car.STEER_MAX])
+                    constraintMatrix[(self.car.N+1)*self.nx + 2*(self.car.N+1) + i*self.nu + row, (self.car.N+1)*self.nx + i*self.nu + row] = 1.0
+                lower[(self.car.N+1)*self.nx + 2*(self.car.N+1) + i*self.nu : (self.car.N+1)*self.nx + 2*(self.car.N+1) + i*self.nu + self.nu] = np.array([-self.car.DECELERATION_MAX, -self.car.STEER_MAX])
                 upper[(self.car.N+1)*self.nx + 2*(self.car.N+1) + i*self.nu : (self.car.N+1)*self.nx + 2*(self.car.N+1) + i*self.nu + self.nu] = np.array([self.car.ACCELERATION_MAX, self.car.STEER_MAX])
             
             # max vel
-            constraintMatrix.insert((self.car.N+1)*self.nx + 2*(self.car.N+1) + self.car.N*self.nu + i, i*self.nx+3, 1.0)
+            constraintMatrix[(self.car.N+1)*self.nx + 2*(self.car.N+1) + self.car.N*self.nu + i, i*self.nx+3] = 1.0
             lower[(self.car.N+1)*self.nx + 2*(self.car.N+1) + self.car.N*self.nu + i] = 0.0
             upper[(self.car.N+1)*self.nx + 2*(self.car.N+1) + self.car.N*self.nu + i] = self.car.VEL_MAX
 
             # s_k >= 0
-            constraintMatrix.insert((self.car.N+1)*self.nx + 2*(self.car.N+1) + self.car.N*self.nu + self.car.N+1 + i, (self.car.N+1)*self.nx+self.car.N*self.nu+i, 1.0)
+            constraintMatrix[(self.car.N+1)*self.nx + 2*(self.car.N+1) + self.car.N*self.nu + self.car.N+1 + i, (self.car.N+1)*self.nx+self.car.N*self.nu+i] = 1.0
             lower[(self.car.N+1)*self.nx + 2*(self.car.N+1) + self.car.N*self.nu + self.car.N+1 + i] = 0.0
             upper[(self.car.N+1)*self.nx + 2*(self.car.N+1) + self.car.N*self.nu + self.car.N+1 + i] = np.inf
 
@@ -544,7 +535,7 @@ class LMPC(Node):
 
         for i in range(2*self.car.K_NEAR):
             # lamda >= 0
-            constraintMatrix.insert(num_constraint_sofar + i, (self.car.N+1)*self.nx + self.car.N*self.nu + i, 1.0)
+            constraintMatrix[num_constraint_sofar + i, (self.car.N+1)*self.nx + self.car.N*self.nu + i] = 1.0
             lower[num_constraint_sofar + i] = 0.0
             upper[num_constraint_sofar + i] = np.inf
         num_constraint_sofar += 2*self.car.K_NEAR
@@ -552,12 +543,14 @@ class LMPC(Node):
         # terminal state constraints
         # -s_t <= -x_{N+1} + linear_combination(lambda) <= s_t
         # 0 <= s_t - x_{N+1} + linear_combination(lambda) <= inf
-        for i in range(2*self.K_NEAR):
+        # print(len(convex_ss))
+        # print(2*self.car.K_NEAR)
+        for i in range(2*self.car.K_NEAR):
             for state_idx in range(self.nx):
-                constraintMatrix.insert(num_constraint_sofar + state_idx, (self.car.N+1)*self.nx + self.car.N*self.nu + self.car.N+1 + i, terminal_candidate[i].x[state_idx])
+                constraintMatrix[num_constraint_sofar + state_idx, (self.car.N+1)*self.nx + self.car.N*self.nu + self.car.N+1 + i] = convex_ss[i].x[state_idx]
         for state_idx in range(self.nx):
-            constraintMatrix.insert(num_constraint_sofar + state_idx, self.car.N*self.nx + state_idx, -1.0)
-            constraintMatrix.insert(num_constraint_sofar + state_idx, (self.car.N+1)*self.nx + self.car.N*self.nu + 2*self.K_NEAR + state_idx, 1.0)
+            constraintMatrix[num_constraint_sofar + state_idx, self.car.N*self.nx + state_idx] = -1.0
+            constraintMatrix[num_constraint_sofar + state_idx, (self.car.N+1)*self.nx + self.car.N*self.nu + 2*self.car.K_NEAR + state_idx] = 1.0
 
             lower[num_constraint_sofar + state_idx] = 0.0
             upper[num_constraint_sofar + state_idx] = np.inf
@@ -565,39 +558,42 @@ class LMPC(Node):
         num_constraint_sofar += self.nx
 
         # sum of lambda = 1
-        for i in range(2*self.K_NEAR):
-            constraintMatrix.insert(num_constraint_sofar, (self.car.N+1)*self.nx + self.car.N*self.nu + self.car.N+1 + i, 1.0)
+        for i in range(2*self.car.K_NEAR):
+            constraintMatrix[num_constraint_sofar, (self.car.N+1)*self.nx + self.car.N*self.nu + self.car.N+1 + i] = 1.0
 
         lower[num_constraint_sofar] = 1.0
         upper[num_constraint_sofar] = 1.0
         num_constraint_sofar += 1
 
-        if num_constraint_sofar != (self.car.N+1)*self.nx + 2*(self.car.N+1) + self.car.N*self.nu + self.car.N+1 + self.car.N+1 + 2*self.K_NEAR + 2*self.nx + 1:
+        if num_constraint_sofar != (self.car.N+1)*self.nx + 2*(self.car.N+1) + self.car.N*self.nu + self.car.N+1 + self.car.N+1 + 2*self.car.K_NEAR + 2*self.nx + 1:
             print("Error: num_constraint_sofar not equal to expected value")
 
-        lowest_cost1 = terminal_candidate[self.car.K_NEAR-1].cost
-        lowest_cost2 = terminal_candidate[2*self.car.K_NEAR-1].cost
+        lowest_cost1 = convex_ss[self.car.K_NEAR-1].cost
+        lowest_cost2 = convex_ss[2*self.car.K_NEAR-1].cost
 
         for i in range(self.car.K_NEAR):
-            gradient[(self.car.N+1)*self.nx + self.car.N*self.nu + self.car.N+1 + i] = terminal_candidate[i].cost - lowest_cost1
+            gradient[(self.car.N+1)*self.nx + self.car.N*self.nu + self.car.N+1 + i] = convex_ss[i].cost - lowest_cost1
         for i in range(self.car.K_NEAR, 2*self.car.K_NEAR):
-            gradient[(self.car.N+1)*self.nx + self.car.N*self.nu + self.car.N+1 + i] = terminal_candidate[i].cost - lowest_cost2
+            gradient[(self.car.N+1)*self.nx + self.car.N*self.nu + self.car.N+1 + i] = convex_ss[i].cost - lowest_cost2
 
-        for i in range(self.car.nx):
-            HessianMatrix.insert((self.car.N+1)*self.nx + self.car.N*self.nu + self.car.N+1 + 2*self.K_NEAR + i, 
-                                 (self.car.N+1)*self.nx + self.car.N*self.nu + self.car.N+1 + 2*self.K_NEAR + i, self.car.q_s_terminal)
+        for i in range(self.nx):
+            HessianMatrix[(self.car.N+1)*self.nx + self.car.N*self.nu + self.car.N+1 + 2*self.car.K_NEAR + i, 
+                            (self.car.N+1)*self.nx + self.car.N*self.nu + self.car.N+1 + 2*self.car.K_NEAR + i] = self.car.q_s_terminal
         
         lower[:self.nx] = -x0
         upper[:self.nx] = -x0
 
         H_t = HessianMatrix.transpose()
-        sparse_I = sparse.eye((self.car.N+1)*self.nx + self.car.N*self.nu + self.car.N+1 + 2*self.K_NEAR + self.nx)
+        sparse_I = sparse.eye((self.car.N+1)*self.nx + self.car.N*self.nu + self.car.N+1 + 2*self.car.K_NEAR + self.nx)
 
         HessianMatrix = 0.5 * (HessianMatrix + H_t) + 1e-7 * sparse_I
         
-        self.osqp.update(P=HessianMatrix, q=gradient, A=constraintMatrix, l=lower, u=upper)
+        # self.osqp.update(q=gradient, l=lower, u=upper)
+        # self.osqp.update(Px=sparse.triu(HessianMatrix), Ax=constraintMatrix)
+        self.osqp = OSQP()
+        self.osqp.setup(P=HessianMatrix, q=gradient, A=constraintMatrix, l=lower, u=upper, warm_start=True, polish=True)
         results = self.osqp.solve()
-
+        print(results.x, results.info.status, results.dual_inf_cert)
         self.QPSol = results.x
 
         
@@ -608,7 +604,7 @@ class LMPC(Node):
         steer = self.QPSol[(self.car.N+1)*self.nx + 1]
 
         self.get_logger().info(f"accel_cmd: {accel}, steer_cmd: {steer}, slip_angle: {self.slip_angle}")
-        steer = np.clip(steer, -self.car.steer_max, self.car.steer_max)
+        steer = np.clip(steer, -self.car.STEER_MAX, self.car.STEER_MAX)
 
         drive_msg = AckermannDriveStamped()
         drive_msg.header.stamp = self.get_clock().now().to_msg()

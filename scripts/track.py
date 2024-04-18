@@ -168,15 +168,15 @@ class Track:
         return np.arctan2(dy_dtheta, dx_dtheta)
     
     def get_left_half_width(self, theta: float) -> float:
-        idx = max(0, min(len(self.centerline_points) - 1, np.floor(theta / self.step)))
+        idx = max(0, min(len(self.centerline_points) - 1, int(np.floor(theta / self.step))))
         return self.centerline_points[idx, 2]
     
     def get_right_half_width(self, theta: float) -> float:
-        idx = max(0, min(len(self.centerline_points) - 1, np.floor(theta / self.step)))
+        idx = max(0, min(len(self.centerline_points) - 1, int(np.floor(theta / self.step))))
         return self.centerline_points[idx, 3]
     
     def set_half_width(self, theta: float, left: float, right: float):
-        idx = max(0, min(len(self.centerline_points) - 1, np.floor(theta / self.step)))
+        idx = max(0, min(len(self.centerline_points) - 1, int(np.floor(theta / self.step))))
         self.centerline_points[idx, 2] = left
         self.centerline_points[idx, 3] = right
 
