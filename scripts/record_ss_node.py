@@ -60,7 +60,7 @@ class RecordSS(Node):
             # TODO: Stop recording after two laps
             if self.lap > 1:
                 self.get_logger().info("Finished recording")
-                # self.save_record(self.savepath)
+                self.save_record(self.savepath)
                 self.is_finished = True
                 rclpy.shutdown()
         self.s_prev = s_curr

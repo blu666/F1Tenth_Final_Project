@@ -48,13 +48,13 @@ class Spline:
         self.cs_d = self.cs.derivative(1)
         self.cs_dd = self.cs.derivative(2)
 
-    def __call__(self, s:float):
+    def __call__(self, s):
         return self.cs(s)
 
-    def eval_d(self, s:float):
+    def eval_d(self, s):
         return self.cs_d(s)
 
-    def eval_dd(self, s:float):
+    def eval_dd(self, s):
         return self.cs_dd(s)
 
         
