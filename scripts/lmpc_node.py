@@ -130,9 +130,9 @@ class LMPC(Node):
         self.yawdot = pose_msg.twist.twist.angular.z
         self.slip_angle = np.arctan2(pose_msg.twist.twist.linear.y, pose_msg.twist.twist.linear.x)
 
-        if (not self.use_dynamics) and (self.vel > self.car.VEL_THRESH):
+        if (not self.use_dynamics) and (self.vel > self.car.DYNA_VEL_THRESH):
             self.use_dynamics = True
-        elif(self.use_dynamics) and (self.vel < self.car.VEL_THRESH):
+        elif(self.use_dynamics) and (self.vel < self.car.DYNA_VEL_THRESH):
             self.use_dynamics = False
         # if (vel > 4.5):
 
