@@ -199,6 +199,7 @@ class LMPC(Node):
         # line 477: select_convex_safe_set
         convex_ss = []
         for it in range(iter_start, iter_end+1):
+            # print("it ", it)
             nearest_idx = self.find_nearest_point(self.SS[it], s)
             lap_cost = self.SS[it][0].cost
 
@@ -446,10 +447,12 @@ class LMPC(Node):
 
     def solve_MPC(self, terminal_candidate):
         # line 693: solve_MPC
+        
         s_t = self.Track.find_theta(terminal_candidate[:2])
 
         convex_ss = self.select_convex_ss(self.iter-2, self.iter-1, s_t)
-
+        print("ter", terminal_candidate)
+        print("convex ss", convex_ss)
         HessianMatrix = sparse.csr_matrix(((self.car.N+1)*self.nx + self.car.N*self.nu + self.car.N+1 + 2*self.car.K_NEAR + self.nx, 
                                           (self.car.N+1)*self.nx + self.car.N*self.nu + self.car.N+1 + 2*self.car.K_NEAR + self.nx))
         
