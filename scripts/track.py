@@ -95,7 +95,7 @@ class Track:
         # print(closest_points)
         return closest_points[0, 4]
     
-    def find_theta_uniform_step(self, point: np.ndarray) -> float:
+    def find_theta(self, point: np.ndarray) -> float:
         dist = np.linalg.norm(self.centerline_points[:, :2] - point, axis=1)
         ind = np.argmin(dist)
         return ind * self.step
