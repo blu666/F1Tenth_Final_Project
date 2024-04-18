@@ -20,7 +20,7 @@ import tf2_ros
 from visualization_msgs.msg import Marker, MarkerArray
 from rclpy.parameter import Parameter, ParameterType
 from sensor_msgs.msg import PointCloud
-from car_params import CarParams
+from car_params import CarParams, load_default_car_params
 from track import Track ## TODO: implement Track class
 from scipy import sparse
 from osqp import OSQP
@@ -39,10 +39,8 @@ class SS_Sample:
 class LMPC(Node):
     def __init__(self):
         super().__init__('lmpc_node')
-        # Create pub sub
-        self.create_subscription(Odometry, 'ego_racecar/odom', self.odom_callback, 10)
-        self.drive_publisher = self.create_publisher(AckermannDriveStamped, '/drive', 10)
-
+        
+        
         self.map_to_car_rotation = None
         self.map_to_car_translation = None
         
@@ -51,19 +49,6 @@ class LMPC(Node):
         self.use_dynamics = True
 
         self.Track = Track("map/reassigned_centerline.csv")
-        self.osqp = OSQP()
-
-        HessianMatrix = sparse.csr_matrix((self.car.N+1)*self.nx + self.car.N*self.nu + self.car.N+1 + 2*self.car.K_NEAR + self.nx, 
-                                          (self.car.N+1)*self.nx + self.car.N*self.nu + self.car.N+1 + 2*self.car.K_NEAR + self.nx)
-        
-        constraintMatrix = sparse.csr_matrix((self.car.N+1)*self.nx + 2*(self.car.N+1) + self.car.N*self.nu + self.car.N+1 + self.car.N+1 + 2*self.car.K_NEAR + 2*self.nx + 1,
-                                             (self.car.N+1)*self.nx + self.car.N*self.nu + self.car.N+1 + 2*self.car.K_NEAR + self.nx)
-        
-        gradient = np.zeros((self.car.N+1)*self.nx + self.car.N*self.nu + self.car.N+1 + 2*self.car.K_NEAR + self.nx)
-
-        lower = np.zeros((self.car.N+1)*self.nx + 2*(self.car.N+1) + self.car.N*self.nu + self.car.N+1 + self.car.N+1 + 2*self.car.K_NEAR + 2*self.nx + 1)
-        upper = np.zeros((self.car.N+1)*self.nx + 2*(self.car.N+1) + self.car.N*self.nu + self.car.N+1 + self.car.N+1 + 2*self.car.K_NEAR + 2*self.nx + 1)
-        self.osqp.setup(P=HessianMatrix, q=gradient, A=constraintMatrix, l=lower, u=upper, warm_start=True)
 
         # global variables
         self.s_prev = 0
@@ -81,10 +66,35 @@ class LMPC(Node):
         self.terminal_state_pred = None
         
         # Params: TODO: set_params
-        self.car = CarParams()
+        self.car = load_default_car_params()
         self.nx = 6 # dim of state space [x, y, yaw, v, omega, slip]
         self.nu = 2 # dim of control space
         self.ts = 0.01 # time steps
+
+        # Load SS from data
+        self.init_SS("map/levine/initial_ss.csv")
+        
+        # setup osqp
+        self.osqp = OSQP()
+
+        HessianMatrix = sparse.csr_matrix(((self.car.N+1)*self.nx + self.car.N*self.nu + self.car.N+1 + 2*self.car.K_NEAR + self.nx, 
+                                          (self.car.N+1)*self.nx + self.car.N*self.nu + self.car.N+1 + 2*self.car.K_NEAR + self.nx))
+        
+        constraintMatrix = sparse.csr_matrix(((self.car.N+1)*self.nx + 2*(self.car.N+1) + self.car.N*self.nu + self.car.N+1 + self.car.N+1 + 2*self.car.K_NEAR + 2*self.nx + 1,
+                                             (self.car.N+1)*self.nx + self.car.N*self.nu + self.car.N+1 + 2*self.car.K_NEAR + self.nx))
+        
+        gradient = np.zeros((self.car.N+1)*self.nx + self.car.N*self.nu + self.car.N+1 + 2*self.car.K_NEAR + self.nx)
+
+        lower = np.zeros((self.car.N+1)*self.nx + 2*(self.car.N+1) + self.car.N*self.nu + self.car.N+1 + self.car.N+1 + 2*self.car.K_NEAR + 2*self.nx + 1)
+        upper = np.zeros((self.car.N+1)*self.nx + 2*(self.car.N+1) + self.car.N*self.nu + self.car.N+1 + self.car.N+1 + 2*self.car.K_NEAR + 2*self.nx + 1)
+        self.osqp.setup(P=HessianMatrix, q=gradient, A=constraintMatrix, l=lower, u=upper, warm_start=True)
+
+        # Create pub sub
+        self.create_subscription(Odometry, 'ego_racecar/odom', self.odom_callback, 10)
+        self.drive_publisher = self.create_publisher(AckermannDriveStamped, '/drive', 10)
+        self.create_timer(1 / 20.0, self.lmpc_run)
+        self.get_logger().info("LMPC Node Initialized")
+
 
     def lmpc_run(self):
         # line 387: run
@@ -117,6 +127,7 @@ class LMPC(Node):
         self.s_prev = self.s_curr
         self.time += 1
         self.first_run = False
+        self.get_logger().info("LMPC Run iter: {}, time: {0}".format(self.iter, self.time))
 
     def odom_callback(self, pose_msg: Odometry):
         current_pose = np.array([pose_msg.pose.pose.position.x, pose_msg.pose.pose.position.y])
@@ -136,14 +147,14 @@ class LMPC(Node):
             self.use_dynamics = False
         # if (vel > 4.5):
 
-        self.lmpc_run()
+        # self.lmpc_run()
 
     def init_SS(self, data_file: str):
         # line 244: init_SS_from_data
         # Read data from csv file
         self.SS = []
-        header = "time, x, y, yaw, vel, acc_cmd, steer_cmd, s, lap"
-        data: np.ndarray = np.loadtxt(data_file, delimiter=',', header=header) # (time_steps, 8)
+        # header = "time, x, y, yaw, vel, acc_cmd, steer_cmd, s, lap"
+        data: np.ndarray = np.loadtxt(data_file, delimiter=',', skiprows=1) # (time_steps, 8)
         traj = []
         prev_time = -1
         iteration = 0
@@ -411,11 +422,11 @@ class LMPC(Node):
 
         convex_ss = self.select_convex_ss(self.iter-2, self.iter-1, s_t)
 
-        HessianMatrix = sparse.csr_matrix((self.car.N+1)*self.nx + self.car.N*self.nu + self.car.N+1 + 2*self.car.K_NEAR + self.nx, 
-                                          (self.car.N+1)*self.nx + self.car.N*self.nu + self.car.N+1 + 2*self.car.K_NEAR + self.nx)
+        HessianMatrix = sparse.csr_matrix(((self.car.N+1)*self.nx + self.car.N*self.nu + self.car.N+1 + 2*self.car.K_NEAR + self.nx, 
+                                          (self.car.N+1)*self.nx + self.car.N*self.nu + self.car.N+1 + 2*self.car.K_NEAR + self.nx))
         
-        constraintMatrix = sparse.csr_matrix((self.car.N+1)*self.nx + 2*(self.car.N+1) + self.car.N*self.nu + self.car.N+1 + self.car.N+1 + 2*self.car.K_NEAR + 2*self.nx + 1,
-                                             (self.car.N+1)*self.nx + self.car.N*self.nu + self.car.N+1 + 2*self.car.K_NEAR + self.nx)
+        constraintMatrix = sparse.csr_matrix(((self.car.N+1)*self.nx + 2*(self.car.N+1) + self.car.N*self.nu + self.car.N+1 + self.car.N+1 + 2*self.car.K_NEAR + 2*self.nx + 1,
+                                             (self.car.N+1)*self.nx + self.car.N*self.nu + self.car.N+1 + 2*self.car.K_NEAR + self.nx))
         
         gradient = np.zeros((self.car.N+1)*self.nx + self.car.N*self.nu + self.car.N+1 + 2*self.car.K_NEAR + self.nx)
 
@@ -599,7 +610,7 @@ def normalize_vector(vec):
 
 def main(args=None):
     rclpy.init(args=args)
-    print("RRT Initialized")
+    # print("RRT Initialized")
     lmpc_node = LMPC()
     rclpy.spin(lmpc_node)
 
