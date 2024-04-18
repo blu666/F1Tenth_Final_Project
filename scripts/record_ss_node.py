@@ -80,7 +80,8 @@ class RecordSS(Node):
         self.time += 1
 
     def save_record(self, savepath: str):
-        np.savetxt(savepath, self.record, delimiter=",", header="time, x, y, yaw, vel, acc_cmd, steer_cmd, s, lap")
+        # header="time, x, y, yaw, vel, acc_cmd, steer_cmd, s, lap"
+        np.savetxt(savepath, self.record, delimiter=",")
         self.get_logger().info("Initial SS saved to {}".format(savepath))
         return    
 

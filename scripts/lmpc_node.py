@@ -8,7 +8,7 @@ from sensor_msgs.msg import LaserScan
 from geometry_msgs.msg import Point
 from ackermann_msgs.msg import AckermannDriveStamped, AckermannDrive
 from nav_msgs.msg import OccupancyGrid, Odometry
-
+from typing import List
 
 import csv
 from dataclasses import dataclass
@@ -48,7 +48,20 @@ class LMPC(Node):
         self.SS = None
         self.use_dynamics = True
 
-        self.Track = Track("map/reassigned_centerline.csv")
+        self.Track = Track("map/refined_centerline.csv", initialized=True)
+        self.osqp = OSQP()
+
+        HessianMatrix = sparse.csr_matrix((self.car.N+1)*self.nx + self.car.N*self.nu + self.car.N+1 + 2*self.car.K_NEAR + self.nx, 
+                                          (self.car.N+1)*self.nx + self.car.N*self.nu + self.car.N+1 + 2*self.car.K_NEAR + self.nx)
+        
+        constraintMatrix = sparse.csr_matrix((self.car.N+1)*self.nx + 2*(self.car.N+1) + self.car.N*self.nu + self.car.N+1 + self.car.N+1 + 2*self.car.K_NEAR + 2*self.nx + 1,
+                                             (self.car.N+1)*self.nx + self.car.N*self.nu + self.car.N+1 + 2*self.car.K_NEAR + self.nx)
+        
+        gradient = np.zeros((self.car.N+1)*self.nx + self.car.N*self.nu + self.car.N+1 + 2*self.car.K_NEAR + self.nx)
+
+        lower = np.zeros((self.car.N+1)*self.nx + 2*(self.car.N+1) + self.car.N*self.nu + self.car.N+1 + self.car.N+1 + 2*self.car.K_NEAR + 2*self.nx + 1)
+        upper = np.zeros((self.car.N+1)*self.nx + 2*(self.car.N+1) + self.car.N*self.nu + self.car.N+1 + self.car.N+1 + 2*self.car.K_NEAR + 2*self.nx + 1)
+        self.osqp.setup(P=HessianMatrix, q=gradient, A=constraintMatrix, l=lower, u=upper, warm_start=True)
 
         # global variables
         self.s_prev = 0
@@ -250,7 +263,7 @@ class LMPC(Node):
             return high
         
 
-    def update_cost_to_go(self, trajectory):
+    def update_cost_to_go(self, trajectory: List[SS_Sample]):
         # line 536: update_cost_to_go
         trajectory[-1].cost = 0
         for i in range(len(trajectory)-2, -1, -1):

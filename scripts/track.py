@@ -13,13 +13,18 @@ from spline import Spline
 
 
 class Track:
-    def __init__(self, centerline_points: str):
+    def __init__(self, centerline_points: str, initialized: bool = False):
         self.centerline_points = self.load_waypoints(centerline_points) # (N, 5) [x, y, left, right, theta]
         self.centerline_xy = self.centerline_points[:, :2]
-        self.x_spline: Spline = None
-        self.y_spline: Spline = None
         self.step = 0.05 # step size
-        self.length = 0.0
+        if not initialized:
+            self.x_spline: Spline = None
+            self.y_spline: Spline = None
+            self.length = 0.0
+        else:
+            self.x_spline = Spline(self.centerline_points[:, 4], self.centerline_points[:, 0])
+            self.y_spline = Spline(self.centerline_points[:, 4], self.centerline_points[:, 1])
+            self.length = self.centerline_points[-1, 4]
 
     def reset_starting_point(self, x: float, y: float, refine: bool = True):
         """
