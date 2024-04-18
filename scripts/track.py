@@ -73,6 +73,11 @@ class Track:
         closest_points, _ = self.find_closest_waypoint(x, y)
         return closest_points[0, 2]
     
+    def find_theta(self, point: np.ndarray) -> float:
+        dist = np.linalg.norm(self.centerline_points[:, :2] - point, axis=1)
+        ind = np.argmin(dist)
+        return ind * self.step
+    
     def wrap_theta(self, theta: float) -> float:
         while (theta > self.length):
             theta -= self.length
