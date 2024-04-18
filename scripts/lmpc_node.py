@@ -372,7 +372,7 @@ class LMPC(Node):
 
     def solve_MPC(self, terminal_candidate):
         # line 693: solve_MPC
-        s_t = 
+        s_t = ...
 
     def apply_control(self):
         # line 938: apply_control
