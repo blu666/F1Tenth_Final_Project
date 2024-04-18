@@ -84,10 +84,7 @@ class LMPC(Node):
         self.car = CarParams()
         self.nx = 6 # dim of state space [x, y, yaw, v, omega, slip]
         self.nu = 2 # dim of control space
-        self.ts = 0.01 # time step
-        # self.car.N = 16 # prediction horizon
-        # self.car.VEL_THRESH = 0.8
-        # self.car.K_NEAR = 16
+        self.ts = 0.01 # time steps
 
     def lmpc_run(self):
         # line 387: run
@@ -103,7 +100,12 @@ class LMPC(Node):
                 self.QPSol[(self.car.N+1)*self.nx+i*self.nu:(self.car.N+1)*self.nx+i*self.nu+self.nu] = self.SS[self.iter][i].u
 
         # check if new lap
-        ...
+        if self.s_curr - self.s_prev < -self.Track.length/2:
+            self.iter += 1
+            self.update_cost_to_go(self.SS[self.iter])
+            self.SS.append(self.curr_traj.copy())
+            self.curr_traj = []
+            self.time = 0
 
         # select terminal candidate
         terminal_candidate = self.select_terminal_candidate()
@@ -111,7 +113,7 @@ class LMPC(Node):
         self.apply_control()
         self.add_point()
 
-        self.terminal_state_pred = ...
+        self.terminal_state_pred = self.QPSol[self.car.N*self.nx:(self.car.N+1)*self.nx]
         self.s_prev = self.s_curr
         self.time += 1
         self.first_run = False
@@ -123,10 +125,10 @@ class LMPC(Node):
         self.map_to_car_rotation = R.from_quat([pose_msg.pose.pose.orientation.x, pose_msg.pose.pose.orientation.y, pose_msg.pose.pose.orientation.z, pose_msg.pose.pose.orientation.w])
 
         s_curr = self.Track.find_theta(current_pose)
-        self.yaw = ...
-        self.vel = ...
-        self.yawdot = ...
-        self.slip_angle = ...
+        self.yaw = current_heading.as_euler('zyx')[0]
+        self.vel = np.linalg.norm([pose_msg.twist.twist.linear.x, pose_msg.twist.twist.linear.y])
+        self.yawdot = pose_msg.twist.twist.angular.z
+        self.slip_angle = np.arctan2(pose_msg.twist.twist.linear.y, pose_msg.twist.twist.linear.x)
 
         if (not self.use_dynamics) and (self.vel > self.car.VEL_THRESH):
             self.use_dynamics = True
@@ -563,8 +565,8 @@ class LMPC(Node):
 
     def apply_control(self):
         # line 938: apply_control
-        accel = ...
-        steer = ...
+        accel = self.QPSol[(self.car.N+1)*self.nx]
+        steer = self.QPSol[(self.car.N+1)*self.nx + 1]
 
         self.get_logger().info(f"accel_cmd: {accel}, steer_cmd: {steer}, slip_angle: {self.slip_angle}")
         steer = np.clip(steer, -self.car.steer_max, self.car.steer_max)
