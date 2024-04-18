@@ -8,7 +8,7 @@ from sensor_msgs.msg import LaserScan
 from geometry_msgs.msg import Point
 from ackermann_msgs.msg import AckermannDriveStamped, AckermannDrive
 from nav_msgs.msg import OccupancyGrid, Odometry
-
+from typing import List
 
 import csv
 from dataclasses import dataclass
@@ -50,7 +50,7 @@ class LMPC(Node):
         self.SS = None
         self.use_dynamics = True
 
-        self.Track = Track("map/reassigned_centerline.csv")
+        self.Track = Track("map/refined_centerline.csv", initialized=True)
         self.osqp = OSQP()
 
         HessianMatrix = sparse.csr_matrix((self.car.N+1)*self.nx + self.car.N*self.nu + self.car.N+1 + 2*self.car.K_NEAR + self.nx, 
@@ -141,7 +141,7 @@ class LMPC(Node):
     def init_SS(self, data_file: str):
         # line 244: init_SS_from_data
         # Read data from csv file
-        self.SS = []
+        self.SS: List[List[SS_Sample]] = []
         header = "time, x, y, yaw, vel, acc_cmd, steer_cmd, s, lap"
         data: np.ndarray = np.loadtxt(data_file, delimiter=',', header=header) # (time_steps, 8)
         traj = []
@@ -238,7 +238,7 @@ class LMPC(Node):
             return high
         
 
-    def update_cost_to_go(self, trajectory):
+    def update_cost_to_go(self, trajectory: List[SS_Sample]):
         # line 536: update_cost_to_go
         trajectory[-1].cost = 0
         for i in range(len(trajectory)-2, -1, -1):
