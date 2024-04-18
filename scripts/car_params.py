@@ -18,13 +18,13 @@ class CarParams:
     WAYPOINT_SPACE: float
     wheelbase: float
     friction_coeff: float
-    height_cg: float
-    l_cg2rear: float
-    l_cg2front: float
-    C_S_front: float
-    C_S_rear: float
+    h_cg: float
+    l_r: float
+    l_f: float
+    cs_f: float
+    cs_r: float
     mass: float
-    moment_inertia: float
+    I_z: float
     random: float
 
 
@@ -45,13 +45,13 @@ def load_default_car_params():
                      WAYPOINT_SPACE=0.2,
                      wheelbase=0.3302,
                      friction_coeff=1.2,
-                     height_cg=0.08255,
-                     l_cg2rear=0.17145,
-                     l_cg2front=0.15875,
-                     C_S_front=2.3,
-                     C_S_rear=2.3,
+                     h_cg=0.08255,
+                     l_r=0.17145,
+                     l_f=0.15875,
+                     cs_f=2.3,
+                     cs_r=2.3,
                      mass=3.17,
-                     moment_inertia=0.0398378,
+                     I_z=0.0398378,
                      random=1.0)
 
     # car.r_accel = 1.5
