@@ -180,6 +180,7 @@ class LMPC(Node):
     def select_terminal_candidate(self):
         # line 456: select_terminal_candidate
         if self.first_run:
+            print("first run", self.car.N, self.SS[-1][self.car.N])
             return self.SS[-1][self.car.N].x
         else:
             return self.terminal_state_pred
@@ -240,6 +241,7 @@ class LMPC(Node):
 
     def find_nearest_point(self, trajectory, s):
         # line 524: find_nearest_point
+        # print(s)
         low, high = 0, len(trajectory)
         while low <= high:
             mid = (low + high) // 2
