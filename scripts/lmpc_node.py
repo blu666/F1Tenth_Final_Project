@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
+import sys
+sys.append("./controller")
 import numpy as np
 import math
-
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import LaserScan
@@ -20,11 +21,12 @@ import tf2_ros
 from visualization_msgs.msg import Marker, MarkerArray
 from rclpy.parameter import Parameter, ParameterType
 from sensor_msgs.msg import PointCloud
-from car_params import CarParams, load_default_car_params
-from track import Track ## TODO: implement Track class
+from utils.params import CarParams, load_default_car_params
+from utils.track import Track ## TODO: implement Track class
 from scipy import sparse
 import cvxpy as cp
 from osqp import OSQP
+from controller import MPC, LMPC
 
 
 # class def for RRT
@@ -68,6 +70,7 @@ class LMPC(Node):
         #==== Create pub sub
         self.create_subscription(Odometry, 'ego_racecar/odom', self.odom_callback, 10)
         self.drive_publisher = self.create_publisher(AckermannDriveStamped, '/drive', 10)
+        self.waypoints_publisher = self.create_publisher(MarkerArray, '/pure_pursuit/waypoints', 10)
         self.create_timer(1 / 20.0, self.lmpc_run)
         self.get_logger().info("LMPC Node Initialized")
 

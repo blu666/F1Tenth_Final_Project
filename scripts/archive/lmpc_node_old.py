@@ -21,7 +21,7 @@ from visualization_msgs.msg import Marker, MarkerArray
 from rclpy.parameter import Parameter, ParameterType
 from sensor_msgs.msg import PointCloud
 from car_params import CarParams, load_default_car_params
-from track import Track ## TODO: implement Track class
+from utils.track import Track ## TODO: implement Track class
 from scipy import sparse
 import cvxpy as cp
 from osqp import OSQP

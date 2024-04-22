@@ -1,5 +1,3 @@
-# Cubic spline interpolation
-# adapted from https://github.com/mlab-upenn/LearningMPC/blob/master/include/LearningMPC/spline.h
 import numpy as np
 from scipy.interpolate import CubicSpline
 

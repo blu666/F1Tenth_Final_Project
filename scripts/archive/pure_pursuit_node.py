@@ -150,7 +150,8 @@ class PurePursuit(Node):
         drive_msg.header.frame_id = "ego_racecar/base_link"
         drive_msg.drive.steering_angle = self.p * curvature + self.d * (self.last_curve - curvature)
         # pf_speed = np.linalg.norm(np.array([pose_msg.twist.twist.linear.x, pose_msg.twist.twist.linear.y]))
-        drive_msg.drive.speed = self.v
+        # drive_msg.drive.speed = self.v
+        drive_msg.drive.acceleration = self.v
         # self.get_logger().info("pf speed: {} seg speed: {} command: {}".format(pf_speed, current_params[0] * current_params[1], drive_msg.drive.speed))
         self.get_logger().info("Steering angle: {} Speed: {}".format(drive_msg.drive.steering_angle, drive_msg.drive.speed))
         self.drive_publisher.publish(drive_msg)
