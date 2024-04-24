@@ -31,7 +31,7 @@ def initLMPCParams(track, N):
                    [0., 0., 0., 0., 0., -1.]])
 
     bx = np.array([[track.half_width],   # max ey
-                   [track.half_width]]), # max ey
+                   [track.half_width]]), # max ey # TODO: change to varying half width
     # print("bx", bx)
 
     Fu = np.kron(np.eye(2), np.array([1, -1])).T
