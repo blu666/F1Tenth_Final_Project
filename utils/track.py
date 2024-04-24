@@ -18,6 +18,7 @@ class Track:
         self.centerline_points = self.load_waypoints(centerline_points) # (N, 5) [x, y, left, right, theta]
         self.centerline_xy = self.centerline_points[:, :2]
         self.step = 0.05 # step size
+        self.half_width = 0.6 # TODO: Original RLMPC code assumes uniform track width. Modify to allow for varying track width
         if not initialized:
             self.x_spline: Spline = None
             self.y_spline: Spline = None

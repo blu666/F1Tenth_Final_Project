@@ -51,7 +51,7 @@ class ControllerNode(Node):
         #==== Initialize LMPC
         xPID_cl, uPID_cl, xPID_cl_glob = load_init_ss('./map/initial_ss.csv')
         # mpcParam, ltvmpcParam = initMPCParams(n, d, N, vt)
-        numSS_it, numSS_Points, Laps, TimeLMPC, QterminalSlack, lmpcParameters = initLMPCParams(map, N)
+        numSS_it, numSS_Points, _, _, QterminalSlack, lmpcParameters = initLMPCParams(self.Track, N) # TODO: change from map to self.Track
         self.lmpcpredictiveModel = PredictiveModel(n, d, self.Track, 4)
         for i in range(0,4): # add trajectories used for model learning
             self.lmpcpredictiveModel.addTrajectory(xPID_cl,uPID_cl)
@@ -69,34 +69,6 @@ class ControllerNode(Node):
         self.time = 0           # record lapping time steps
         self.lap = 0            # record laps
         self.s_prev = 0         # record previous s        
-
-        # self.time = 0
-        # self.iter = 2
-        # self.car_pos = np.zeros(2)
-        # self.yaw = 0
-        # self.vel = 0
-        # self.yawdot = 0
-        # self.slip_angle = 0
-
-        # self.curr_traj = []
-        # self.QPSol = None
-        # self.terminal_state_pred = None
-        
-        # self.map_to_car_rotation = None
-        # self.map_to_car_translation = None
-        
-        # self.first_run = True
-        # self.SS = None
-        # self.use_dynamics = False
-        
-        #==== Params: TODO: set_params
-        
-        # self.nx = 6 # dim of state space [x, y, yaw, v, omega, slip]
-        # self.nu = 2 # dim of control space
-        # self.ts = 0.05 # time steps
-
-        #==== Load SS from data
-        # self.init_SS("map/inital_ss.csv")
 
         #==== Create pub sub
         self.create_subscription(Odometry, 'ego_racecar/odom', self.odom_callback, 10)

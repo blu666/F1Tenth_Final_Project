@@ -25,13 +25,13 @@ def initMPCParams(n, d, N, vt):
     mpcParametersLTV = MPCParams(n=n, d=d, N=N, Q=Q, R=R, Fx=Fx, bx=bx, Fu=Fu, bu=bu, xRef=xRef, slacks=True, Qslack=Qslack)       
     return mpcParameters, mpcParametersLTV
 
-def initLMPCParams(map, N):
+def initLMPCParams(track, N):
     # Buil the matrices for the state constraint in each region. In the region i we want Fx[i]x <= bx[b]
     Fx = np.array([[0., 0., 0., 0., 0., 1.],
                    [0., 0., 0., 0., 0., -1.]])
 
-    bx = np.array([[map.halfWidth],   # max ey
-                   [map.halfWidth]]), # max ey
+    bx = np.array([[track.half_width],   # max ey
+                   [track.half_width]]), # max ey
     # print("bx", bx)
 
     Fu = np.kron(np.eye(2), np.array([1, -1])).T
