@@ -5,7 +5,7 @@ import numpy as np
 from ackermann_msgs.msg import AckermannDriveStamped
 from nav_msgs.msg import Odometry
 from scipy.spatial.transform import Rotation as R
-from track import Track
+from utils.track import Track
 from nav_msgs.msg import OccupancyGrid
 
 
@@ -81,7 +81,7 @@ class RecordSS(Node):
 
     def save_record(self, savepath: str):
         # header="time, x, y, yaw, vel, acc_cmd, steer_cmd, s, lap"
-        np.savetxt(savepath, self.record, delimiter=",")
+        np.savetxt(savepath, self.record, format='%1.4f')
         self.get_logger().info("Initial SS saved to {}".format(savepath))
         return    
 

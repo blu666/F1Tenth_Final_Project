@@ -170,7 +170,7 @@ class MPC(Node):
         drive_msg.drive.speed = speed_output
         drive_msg.drive.acceleration = self.oa[0]
         self.drive_pub.publish(drive_msg)
-        self.get_logger().info(f"Steering Angle: {steer_output}, Speed: {speed_output}")
+        self.get_logger().info(f"Steering Angle: {steer_output}, Speed: {speed_output}, acc: {self.oa[0]}")
 
     def mpc_prob_init(self):
         """

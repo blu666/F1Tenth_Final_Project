@@ -38,10 +38,10 @@ class Track:
         """
         ## Rearange waypoints
         N = self.centerline_points.shape[0] # NOTE: (1)
-        new_points = np.zeros((N+1, 5))
+        new_points = np.zeros((N, 5))
         _, starting_index = self.get_closest_waypoint(x, y)
         new_points[:N, :4] = np.roll(self.centerline_points[:, :4], -starting_index, axis=0)
-        new_points[N, :4] = new_points[0, :4] # CLOSE THE LOOP
+        # new_points[N, :4] = new_points[0, :4] # CLOSE THE LOOP
         ## Find s for each point
         new_points[:, 4] = self.get_cum_distance(new_points[:, :2])
         self.centerline_points = new_points
@@ -75,8 +75,8 @@ class Track:
         s = np.arange(0, self.length, self.step)
         x = self.x_spline(s)
         y = self.y_spline(s)
-        x = np.append(x, x[0]) # close the loop
-        y = np.append(y, y[0]) # close the loop
+        # x = np.append(x, x[0]) # close the loop
+        # y = np.append(y, y[0]) # close the loop
         points = np.hstack([x[:, None], y[:, None]])
         s_new = self.get_cum_distance(points) # (N, 2)
         left_right_distance = self.update_half_width(points) # TODO: UPDATE HALF DISTANCE ON S

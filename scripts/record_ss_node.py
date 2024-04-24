@@ -59,7 +59,7 @@ class RecordSS(Node):
             return
         if self.is_finished:
             return
-        self.get_logger().info("Recording lap: {} at time: {}".format(self.lap, self.time))
+        
         ## Extract states from odometry and drive message
         accel = drive_msg.drive.acceleration
         self.u = np.array([drive_msg.drive.steering_angle, accel], dtype=np.float32) # [delta, a]
@@ -76,10 +76,12 @@ class RecordSS(Node):
         ## Extract states from track
         epsi, s_curr, ey, closepoint = self.track.get_states(X, Y, yaw)
         self.publish_goalpoint(closepoint)
+        self.get_logger().info("Recording lap: {} at time: {} s: {}".format(self.lap, self.time, s_curr))
         ## Check if the car has passed the starting line
         if s_curr - self.s_prev < -self.track.length / 2:
             self.time = 0
             self.lap += 1
+            print("!===============STARTING NEW LAP {}".format(s_curr - self.s_prev))
             if self.lap > 1:
                 # Stop recording after two laps
                 self.get_logger().info("Finished recording")
@@ -89,12 +91,16 @@ class RecordSS(Node):
         self.s_prev = s_curr
         # xPID_cl is [vx, vy, wz, epsi, s, ey]; xPID_cl_glob is [vx, vy, wz, psi, X, Y]
         self.record.append([self.time, self.lap, vx, vy, wz, epsi, s_curr, ey, yaw, X, Y, self.u[0], self.u[1]])
-        print(self.time, self.lap, epsi, s_curr, ey)
+        # print(self.time, self.lap, epsi, s_curr, ey)
+        
         self.time += 1
 
     def save_record(self, savepath: str):
         # header="time, x, y, yaw, vel, acc_cmd, steer_cmd, s, lap"
-        np.savetxt(savepath, self.record, delimiter=",")
+        np.savetxt(savepath, 
+                   self.record, 
+                   fmt='%1.4f,%1.4f,%1.4f,%1.4f,%1.4f,%1.4f,%1.4f,%1.4f,%1.4f,%1.4f,%1.4f,%1.4f,%1.4f'
+        )
         self.get_logger().info("Initial SS saved to {}".format(savepath))
         return    
 
