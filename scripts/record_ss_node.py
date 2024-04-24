@@ -7,11 +7,11 @@ import numpy as np
 from ackermann_msgs.msg import AckermannDriveStamped
 from nav_msgs.msg import Odometry
 from scipy.spatial.transform import Rotation as R
-
 from nav_msgs.msg import OccupancyGrid
 from visualization_msgs.msg import Marker, MarkerArray
 from utils.track import Track
 from utils.spline import Spline
+
 
 class RecordSS(Node):
     """ 
@@ -28,13 +28,10 @@ class RecordSS(Node):
         self.create_subscription(OccupancyGrid, '/map', self.map_callback, 10)
         self.goalpoint_publisher = self.create_publisher(Marker, '/pure_pursuit/goalpoint', 10)
         self.waypoints_publisher = self.create_publisher(MarkerArray, '/pure_pursuit/waypoints', 10)
-        
         self.track = Track("./map/levine/centerline.csv")
         self.reset_startingline = True
-        
         self.u = np.zeros(2, dtype=np.float32)
         # self.x = np.zeros(6, dtype=np.float32)
-        
         self.time = 0
         self.lap = 0
         self.odom: Odometry = None
@@ -44,11 +41,11 @@ class RecordSS(Node):
         self.is_finished = False
         self.waypoints = None
         # self.is_initized = False
-    
+
     def check_init(self):
         if self.odom is None or self.map is None:
             return False
-    
+
     def control_callback(self, drive_msg: AckermannDriveStamped):
         # return
         if drive_msg is None:
@@ -59,7 +56,6 @@ class RecordSS(Node):
             return
         if self.is_finished:
             return
-        
         ## Extract states from odometry and drive message
         accel = drive_msg.drive.acceleration
         self.u = np.array([drive_msg.drive.steering_angle, accel], dtype=np.float32) # [delta, a]
@@ -72,7 +68,6 @@ class RecordSS(Node):
         vx = self.odom.twist.twist.linear.x
         vy = self.odom.twist.twist.linear.y
         wz = self.odom.twist.twist.angular.z
-        
         ## Extract states from track
         epsi, s_curr, ey, closepoint = self.track.get_states(X, Y, yaw)
         self.publish_goalpoint(closepoint)
@@ -132,11 +127,11 @@ class RecordSS(Node):
         # epsi, s_curr, ey, closepoint = self.track.get_states(X, Y, yaw)
         # self.publish_goalpoint(closepoint)
         # print(X, Y, epsi, s_curr, ey)
-        
+
     def map_callback(self, map_msg: OccupancyGrid):
         self.get_logger().info("Map received")
         return
-    
+
     def publish_waypoints(self):
         if self.waypoints is None:
             print("WAYPOINTS NOT INITIALIZED")
@@ -166,7 +161,7 @@ class RecordSS(Node):
             marker.color.b = 0.0
             markerArray.markers.append(marker)
         self.waypoints_publisher.publish(markerArray)
-        
+
     def publish_goalpoint(self, goalpoint):
         marker = Marker()
         marker.header.frame_id = "map"
@@ -189,7 +184,7 @@ class RecordSS(Node):
         marker.color.g = 0.0
         marker.color.b = 0.0
         self.goalpoint_publisher.publish(marker)
-    
+
 
 def main(args=None):
     rclpy.init(args=args)

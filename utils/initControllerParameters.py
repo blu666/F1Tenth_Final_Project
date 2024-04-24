@@ -1,6 +1,7 @@
 import numpy as np
 from utils.PredictiveControllers import MPCParams
 
+
 def initMPCParams(n, d, N, vt):
     # Buil the matrices for the state constraint in each region. In the region i we want Fx[i]x <= bx[b]
     Fx = np.array([[0., 0., 0., 0., 0., 1.],
@@ -24,6 +25,7 @@ def initMPCParams(n, d, N, vt):
     mpcParameters    = MPCParams(n=n, d=d, N=N, Q=Q, R=R, Fx=Fx, bx=bx, Fu=Fu, bu=bu, xRef=xRef, slacks=True, Qslack=Qslack)
     mpcParametersLTV = MPCParams(n=n, d=d, N=N, Q=Q, R=R, Fx=Fx, bx=bx, Fu=Fu, bu=bu, xRef=xRef, slacks=True, Qslack=Qslack)       
     return mpcParameters, mpcParametersLTV
+
 
 def initLMPCParams(track, N):
     # Buil the matrices for the state constraint in each region. In the region i we want Fx[i]x <= bx[b]

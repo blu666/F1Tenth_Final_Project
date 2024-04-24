@@ -54,7 +54,7 @@ ament_python_install_package(${PROJECT_NAME})
 install(PROGRAMS
   scripts/lmpc_node.py
   scripts/record_ss_node.py
-  scripts/pure_pursuit_node.py
+  # scripts/pure_pursuit_node.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
