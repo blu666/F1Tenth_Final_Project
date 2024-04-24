@@ -2,29 +2,29 @@ import numpy as np
 from utils.PredictiveControllers import MPCParams
 
 
-def initMPCParams(n, d, N, vt):
-    # Buil the matrices for the state constraint in each region. In the region i we want Fx[i]x <= bx[b]
-    Fx = np.array([[0., 0., 0., 0., 0., 1.],
-                   [0., 0., 0., 0., 0., -1.]])
+# def initMPCParams(n, d, N, vt):
+#     # Buil the matrices for the state constraint in each region. In the region i we want Fx[i]x <= bx[b]
+#     Fx = np.array([[0., 0., 0., 0., 0., 1.],
+#                    [0., 0., 0., 0., 0., -1.]])
 
-    bx = np.array([[2.],   # max ey
-                   [2.]]), # max ey
+#     bx = np.array([[2.],   # max ey
+#                    [2.]]), # max ey
 
-    Fu = np.kron(np.eye(2), np.array([1, -1])).T
-    bu = np.array([[0.5],   # -Min Steering
-                   [0.5],   # Max Steering
-                   [10.0],  # -Min Acceleration
-                   [10.0]]) # Max Acceleration
+#     Fu = np.kron(np.eye(2), np.array([1, -1])).T
+#     bu = np.array([[0.5],   # -Min Steering
+#                    [0.5],   # Max Steering
+#                    [10.0],  # -Min Acceleration
+#                    [10.0]]) # Max Acceleration
 
-    # Tuning Parameters
-    Q = np.diag([1.0, 1.0, 1, 1, 0.0, 100.0]) # vx, vy, wz, epsi, s, ey
-    R = np.diag([1.0, 10.0])                  # delta, a
-    xRef   = np.array([vt, 0, 0, 0, 0, 0])
-    Qslack = 1 * np.array([0, 50])
+#     # Tuning Parameters
+#     Q = np.diag([1.0, 1.0, 1, 1, 0.0, 100.0]) # vx, vy, wz, epsi, s, ey
+#     R = np.diag([1.0, 10.0])                  # delta, a
+#     xRef   = np.array([vt, 0, 0, 0, 0, 0])
+#     Qslack = 1 * np.array([0, 50])
     
-    mpcParameters    = MPCParams(n=n, d=d, N=N, Q=Q, R=R, Fx=Fx, bx=bx, Fu=Fu, bu=bu, xRef=xRef, slacks=True, Qslack=Qslack)
-    mpcParametersLTV = MPCParams(n=n, d=d, N=N, Q=Q, R=R, Fx=Fx, bx=bx, Fu=Fu, bu=bu, xRef=xRef, slacks=True, Qslack=Qslack)       
-    return mpcParameters, mpcParametersLTV
+#     mpcParameters    = MPCParams(n=n, d=d, N=N, Q=Q, R=R, Fx=Fx, bx=bx, Fu=Fu, bu=bu, xRef=xRef, slacks=True, Qslack=Qslack)
+#     mpcParametersLTV = MPCParams(n=n, d=d, N=N, Q=Q, R=R, Fx=Fx, bx=bx, Fu=Fu, bu=bu, xRef=xRef, slacks=True, Qslack=Qslack)       
+#     return mpcParameters, mpcParametersLTV
 
 
 def initLMPCParams(track, N):

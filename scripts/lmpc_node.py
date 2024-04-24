@@ -24,7 +24,7 @@ from sensor_msgs.msg import PointCloud
 from utils.params import CarParams, load_default_car_params
 from utils.track import Track
 from utils.utilities import load_init_ss
-from utils.initControllerParameters import initMPCParams, initLMPCParams
+from utils.initControllerParameters import initLMPCParams
 from utils.PredictiveModel import PredictiveModel
 from scipy import sparse
 import cvxpy as cp
@@ -84,10 +84,10 @@ class ControllerNode(Node):
         wz = self.odom.twist.twist.angular.z
         epsi, s_curr, ey, _ = self.Track.get_states(X, Y, yaw)
         self.xt = np.array([vx, vy, wz, epsi, s_curr, ey])
-        self.xt_glob = np.array([vx, vy, wz, yaw, X, Y])
+        self.xt_glob = np.array([vx, vy, wz, yaw, X, Y]) 
         self.lmpc.solve(self.xt)
         u = self.lmpc.get_control()
-        self.lmpc.addPoint(self.x_t, u) # at iteration j add data to SS^{j-1} 
+        self.lmpc.addPoint(self.xt, u) # at iteration j add data to SS^{j-1} 
         #==== Check if the car has passed the starting line
         if s_curr - self.s_prev < -self.Track.length / 3.:
             print("@=>Lapping: Finished runing lap {}, time {}".format(self.lap, self.time))
@@ -109,16 +109,19 @@ class ControllerNode(Node):
         self.apply_control(u[0], u[1], vx)
 
     def initialize_lmpc(self, N, n, d, track):
-        x0_cl, u0_cl, x0_cl_glob = load_init_ss('./map/initial_ss.csv')
+        x0_cls, u0_cls, x0_cl_globs = load_init_ss('./map/initial_ss.csv', 5)
+        # self.get_logger().info("@=>Init: initial safety set lenghth: {}".format(len(x0_cl)))
         # mpcParam, ltvmpcParam = initMPCParams(n, d, N, vt)
         numSS_it, numSS_Points, _, _, QterminalSlack, lmpcParameters = initLMPCParams(track, N) # TODO: change from map to self.Track
         self.lmpcpredictiveModel = PredictiveModel(n, d, track, 4)
-        for _ in range(4): # add trajectories used for model learning
-            self.lmpcpredictiveModel.addTrajectory(x0_cl,u0_cl)
+        for i in range(4): # add trajectories used for model learning
+            lap_id = int(i % 2)
+            self.lmpcpredictiveModel.addTrajectory(x0_cls[lap_id],u0_cls[lap_id])
         lmpcParameters.timeVarying     = True 
         self.lmpc = LMPC(numSS_Points, numSS_it, QterminalSlack, lmpcParameters, self.lmpcpredictiveModel)
-        for _ in range(4): # add trajectories for safe set
-            self.lmpc.addTrajectory(x0_cl, u0_cl, x0_cl_glob)
+        for i in range(4): # add trajectories for safe set
+            lap_id = int(i % 2) # we only recorded 2 laps
+            self.lmpc.addTrajectory(x0_cls[lap_id], u0_cls[lap_id], x0_cl_globs[lap_id])
         return
 
     def odom_callback(self, pose_msg: Odometry):

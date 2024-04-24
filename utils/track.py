@@ -133,7 +133,7 @@ class Track:
     
     def get_theta(self, point:np.ndarray) -> float:
         """
-        Given a position, estimate progress on track
+        Given a position, estimate progress s on track
         
         Input:  [x, y]
         Return: s
