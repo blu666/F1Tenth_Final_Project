@@ -137,6 +137,8 @@ class MPC():
         self.OldInput = self.uPred[0,:]
         self.timeStep += 1
 
+    def get_control(self):
+        return self.uPred[0,:].copy()
 
     def computeLTVdynamics(self):
         # Estimate system dynamics
