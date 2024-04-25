@@ -82,7 +82,7 @@ class ControllerNode(Node):
                                                 self.odom.pose.pose.orientation.w])
         
         yaw = self.map_to_car_rotation.as_euler('zyx')[0]
-        vx, vy = self.odom.twist.twist.linear.x, self.odom.twist.twist.linear.y
+        vx, vy = self.odom.twist.twist.linear.x, self.odom.twist.twist.linear.y + np.random.randn() * 1e-6
         wz = self.odom.twist.twist.angular.z
         epsi, s_curr, ey, _ = self.Track.get_states(X, Y, yaw)
         self.xt = np.array([vx, vy, wz, epsi, s_curr, ey])
@@ -118,7 +118,7 @@ class ControllerNode(Node):
         self.lmpcpredictiveModel = PredictiveModel(n, d, track, 4)
         for i in range(4): # add trajectories used for model learning
             self.lmpcpredictiveModel.addTrajectory(x0_cls[i],u0_cls[i])
-        lmpcParameters.timeVarying     = False
+        lmpcParameters.timeVarying     = True
         self.lmpc = LMPC(numSS_Points, numSS_it, QterminalSlack, lmpcParameters, self.lmpcpredictiveModel)
         for i in range(4): # add trajectories for safe set
             self.lmpc.addTrajectory(x0_cls[i], u0_cls[i], x0_cl_globs[i])
