@@ -392,9 +392,9 @@ class LMPC(MPC):
             x: initial condition
         """        
         # Update zt and xLin is they have crossed the finish line. We want s \in [0, TrackLength]
-        if (self.zt[4]-x0[4] > self.predictiveModel.map.TrackLength/2):
-            self.zt[4] = np.max([self.zt[4] - self.predictiveModel.map.TrackLength,0])
-            self.xLin[4,-1] = self.xLin[4,-1]- self.predictiveModel.map.TrackLength
+        if (self.zt[4]-x0[4] > self.predictiveModel.map.length/2):
+            self.zt[4] = np.max([self.zt[4] - self.predictiveModel.map.length,0])
+            self.xLin[4,-1] = self.xLin[4,-1]- self.predictiveModel.map.length
         sortedLapTime = np.argsort(np.array(self.LapTime))
 
         # Select Points from historical data. These points will be used to construct the terminal cost function and constraint set
@@ -459,7 +459,7 @@ class LMPC(MPC):
         for i in range(0, x.shape[0]):
             if (i == 0):  # Note that for i = 0 --> pick the latest element of the vector x
                 Cost[x.shape[0] - 1 - i] = 0
-            elif x[x.shape[0] - 1 - i, 4]< self.predictiveModel.map.TrackLength:
+            elif x[x.shape[0] - 1 - i, 4]< self.predictiveModel.map.length:
                 Cost[x.shape[0] - 1 - i] = Cost[x.shape[0] - 1 - i + 1] + 1
             else:
                 Cost[x.shape[0] - 1 - i] = 0
@@ -472,7 +472,7 @@ class LMPC(MPC):
             x: current state
             u: current input
         """
-        self.SS[self.it - 1]  = np.append(self.SS[self.it - 1], np.array([x + np.array([0, 0, 0, 0, self.predictiveModel.map.TrackLength, 0])]), axis=0)
+        self.SS[self.it - 1]  = np.append(self.SS[self.it - 1], np.array([x + np.array([0, 0, 0, 0, self.predictiveModel.map.length, 0])]), axis=0)
         self.uSS[self.it - 1] = np.append(self.uSS[self.it - 1], np.array([u]),axis=0)
         self.Qfun[self.it - 1] = np.append(self.Qfun[self.it - 1], self.Qfun[self.it - 1][-1]-1)
         # The above two lines are needed as the once the predicted trajectory has crossed the finish line the goal is
@@ -505,13 +505,13 @@ class LMPC(MPC):
         # print(self.xPred)
         if len(self.xPred) == 0:
             Sel_Qfun = self.Qfun[it][indexSSandQfun]
-        elif (np.all((self.xPred[:, 4] > self.predictiveModel.map.TrackLength) == False)):
+        elif (np.all((self.xPred[:, 4] > self.predictiveModel.map.length) == False)):
             Sel_Qfun = self.Qfun[it][indexSSandQfun]
         elif it < self.it - 1:
             Sel_Qfun = self.Qfun[it][indexSSandQfun] + self.Qfun[it][0]
         else:
             sPred = self.xPred[:, 4]
-            predCurrLap = self.N - sum(sPred > self.predictiveModel.map.TrackLength)
+            predCurrLap = self.N - sum(sPred > self.predictiveModel.map.length)
             currLapTime = self.timeStep
             Sel_Qfun = self.Qfun[it][indexSSandQfun] + currLapTime + predCurrLap
 

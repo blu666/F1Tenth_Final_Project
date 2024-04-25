@@ -150,7 +150,7 @@ class MPC(Node):
         ref_path = self.calc_ref_trajectory(vehicle_state, ref_x, ref_y, ref_yaw, ref_v)
         # self.publish_refpoints(ref_path[:2].T)
         x0 = [vehicle_state.x, vehicle_state.y, vehicle_state.v, vehicle_state.yaw]
-        print("car yaw: %0.4f, ref yaw: %0.4f" % (vehicle_state.yaw, ref_path[3, 0]))
+        # print("car yaw: %0.4f, ref yaw: %0.4f" % (vehicle_state.yaw, ref_path[3, 0]))
         # TODO: solve the MPC control problem
         (
             self.oa,
