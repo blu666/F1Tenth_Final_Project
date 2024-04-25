@@ -53,7 +53,6 @@ class RecordSS(Node):
         self.map: OccupancyGrid = None
         self.s_prev = 0
         self.record = []
-        self.start_record = False
         self.is_finished = False
         self.waypoints = None
         # self.is_initized = False
@@ -79,36 +78,29 @@ class RecordSS(Node):
         ## Extract states from odometry and drive message
         current_odom = deepcopy(self.odom)
         accel = drive_msg.drive.acceleration
-        
         self.u = np.array([drive_msg.drive.steering_angle, accel], dtype=np.float32) # [delta, a]
         
         ## TO GLOBAL
         X, Y = current_odom.pose.pose.position.x, current_odom.pose.pose.position.y
-        # elapsed_time = current_odom.header.stamp.sec - self.prev_odom.header.stamp.sec + \
-        #     (current_odom.header.stamp.nanosec - self.prev_odom.header.stamp.nanosec) * 1e-9
-        # vx_glob = (X - self.prev_odom.pose.pose.position.x) / elapsed_time
-        # vy_glob = (Y - self.prev_odom.pose.pose.position.y) / elapsed_time
+        elapsed_time = current_odom.header.stamp.sec - self.prev_odom.header.stamp.sec + \
+            (current_odom.header.stamp.nanosec - self.prev_odom.header.stamp.nanosec) * 1e-9
+        vx_glob = (X - self.prev_odom.pose.pose.position.x) / elapsed_time
+        vy_glob = (Y - self.prev_odom.pose.pose.position.y) / elapsed_time
         # print(vx_glob, vy_glob)
         heading = R.from_quat(np.array([current_odom.pose.pose.orientation.x,
                                         current_odom.pose.pose.orientation.y,
                                         current_odom.pose.pose.orientation.z,
                                         current_odom.pose.pose.orientation.w]))
         yaw = heading.as_euler('zyx')[0]
-        # vx, vy, _ = heading.inv().apply([vx_glob, vy_glob, 0])
-        vx = current_odom.twist.twist.linear.x
-        vy = np.random.randn() * 1e-3
-        # print(odom_vx, vx, vy)
+        vx, vy, _ = heading.inv().apply([vx_glob, vy_glob, 0])
+        odom_vx = current_odom.twist.twist.linear.x
+        print(odom_vx, vx, vy)
         wz = current_odom.twist.twist.angular.z
         ## Extract states from track
         epsi, s_curr, ey, closepoint = self.track.get_states(X, Y, yaw)
         self.publish_goalpoint(closepoint)
-        # self.get_logger().info("v:({0:.4f},{1:.4f}), odom: {2:.4f}, v_glob: {3:.4f}".format(vx, vy, odom_vx, np.linalg.norm([vx_glob, vy_glob])))
+        self.get_logger().info("v:({0:.4f},{1:.4f}), odom: {2:.4f}, v_glob: {3:.4f}".format(vx, vy, odom_vx, np.linalg.norm([vx_glob, vy_glob])))
         ## Check if the car has passed the starting line
-        if not self.start_record:
-            if s_curr < self.track.length / 3:
-                self.start_record = True
-            else:
-                return
         if s_curr - self.s_prev < -self.track.length / 2:
             self.time = 0
             self.lap += 1
@@ -122,17 +114,16 @@ class RecordSS(Node):
         self.s_prev = s_curr
         # xPID_cl is [vx, vy, wz, epsi, s, ey]; xPID_cl_glob is [vx, vy, wz, psi, X, Y]
         self.record.append([self.time, self.lap, vx, vy, wz, epsi, s_curr, ey, yaw, X, Y, self.u[0], self.u[1]])
-        print("Recorded lap {}, time {}, s {}".format(self.lap, self.time, s_curr))
         # print(self.time, self.lap, epsi, s_curr, ey)
         
         self.time += 1
         self.prev_odom = current_odom
 
     def save_record(self, savepath: str):
-        header = "self.time, self.lap, vx, vy, wz, epsi, s_curr, ey, yaw, X, Y, self.u[0], self.u[1]"
+        header = "self.time, self.lap, vx, vy, wz, epsi, s_curr, ey, yaw, X, Y, self.u[0], self.u[1], odom_vel"
         np.savetxt(savepath, 
                    self.record, 
-                   fmt='%1.6f,%1.6f,%1.6f,%1.6f,%1.6f,%1.6f,%1.6f,%1.6f,%1.6f,%1.6f,%1.6f,%1.6f,%1.6f',
+                   fmt='%1.6f,%1.6f,%1.6f,%1.6f,%1.6f,%1.6f,%1.6f,%1.6f,%1.6f,%1.6f,%1.6f,%1.6f,%1.6f,%1.6f',
                     header=header
         )
         self.get_logger().info("Initial SS saved to {}".format(savepath))

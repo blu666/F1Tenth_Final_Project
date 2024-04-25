@@ -57,8 +57,40 @@ class Track:
         self.centerline_xy = self.centerline_points[:, :2]
         self.length = self.centerline_points[-1, 4]
         ## Fit spline y = f(s), x = f(s)
-        self.x_spline = Spline(self.centerline_points[:, 4], self.centerline_points[:, 0])
-        self.y_spline = Spline(self.centerline_points[:, 4], self.centerline_points[:, 1])
+        spline_s = np.append(self.centerline_points[::5, 4], self.length)
+        spline_x = np.append(self.centerline_points[::5, 0], self.centerline_points[0, 0])
+        spline_y = np.append(self.centerline_points[::5, 1], self.centerline_points[0, 1])
+        self.x_spline = Spline(spline_s, spline_x)
+        self.y_spline = Spline(spline_s, spline_y)
+        if refine:
+            self.refine_uniform_waypoint()
+        np.savetxt("map/refined_centerline.csv", self.centerline_points, delimiter=",")
+        return
+
+    def reset_starting_point_old(self, x: float, y: float, refine: bool = True):
+        """
+        The order of the waypoints should be rearranged, 
+        so that the closest waypoint to the starting position is the first waypoint.
+        
+        NOTE:
+        (1) if calling this function we assume the centerline_point initially is not a closed loop, 
+            hence need to +1 in size and add starting point to the end
+        """
+        ## Rearange waypoints
+        N = self.centerline_points.shape[0] # NOTE: (1)
+        new_points = np.zeros((N, 5))
+        _, starting_index = self.get_closest_waypoint(x, y)
+        new_points[:N, :4] = np.roll(self.centerline_points[:, :4], -starting_index, axis=0)
+        # new_points[N, :4] = new_points[0, :4] # CLOSE THE LOOP
+        ## Find s for each point
+        new_points[:, 4] = self.get_cum_distance(new_points[:, :2])
+        self.centerline_points = new_points
+        self.centerline_xy = self.centerline_points[:, :2]
+        self.length = self.centerline_points[-1, 4]
+        ## Fit spline y = f(s), x = f(s)
+        
+        self.x_spline = Spline(self.centerline_points[::5, 4], self.centerline_points[::5, 0])
+        self.y_spline = Spline(self.centerline_points[::5, 4], self.centerline_points[::5, 1])
         if refine:
             self.refine_uniform_waypoint()
         np.savetxt("map/refined_centerline.csv", self.centerline_points, delimiter=",")
@@ -84,17 +116,19 @@ class Track:
         s = np.arange(0, self.length, self.step)
         x = self.x_spline(s)
         y = self.y_spline(s)
-        # x = np.append(x, x[0]) # close the loop
-        # y = np.append(y, y[0]) # close the loop
+        
+        x = np.append(x, x[0]) # close the loop
+        y = np.append(y, y[0]) # close the loop
         points = np.hstack([x[:, None], y[:, None]])
-        s_new = self.get_cum_distance(points) # (N, 2)
+        s_new = self.get_cum_distance(points) # (N)
+        self.length = s_new[-1]
+        
         left_right_distance = self.update_half_width(points) # TODO: UPDATE HALF DISTANCE ON S
-        new_points = np.hstack([points, left_right_distance[:], s_new[:, None]])
-        print(new_points.shape)
+        
+        new_points = np.hstack([points[:-1], left_right_distance[:-1], s_new[:-1, None]])
         self.centerline_points = new_points
         self.centerline_xy = self.centerline_points[:, :2]
-        self.length = self.centerline_points[-1, 4]
-        print("NEW LAP LENGTH: ", self.length)
+        print("NEW LAP LENGTH: ", self.length, s_new[-2])
 
     def load_waypoints(self, csv_path: str):
         self.waypoints = csv_path
@@ -137,7 +171,7 @@ class Track:
         x_d = self.x_eval_d(s)
         y_d = self.y_eval_d(s)
         psi_des =  np.arctan2(y_d, x_d)
-        epsi = yaw - psi_des
+        epsi = self.diff_angle(yaw, psi_des)
         # ey = self.get_ey([x, y], epsi)
         dis_abs = np.linalg.norm([x, y] - closest_points[0, :2])
         direction = np.sign(np.cross([x, y] - closest_points[0, :2], [x_d, y_d])) # determine the sign of ey
@@ -157,10 +191,10 @@ class Track:
         N = self.centerline_points.shape[0]
         x0, y0 = point[0], point[1]
         closest_points, ind = self.get_closest_waypoint(x0, y0, 2)
-        if (ind[0] == 0 and ind[1] > 2 * N / 3):
-            closest_points[ind[0], 4] = self.length
-        elif (ind[1] == 0 and ind[0] > 2 * N / 3):
-            closest_points[ind[1], 4] = self.length
+        if (ind[0] < N / 4 and ind[1] > 2 * N / 3):
+            closest_points[ind[0], 4] = self.length + closest_points[ind[1], 4]
+        elif (ind[1] < N / 4 and ind[0] > 2 * N / 3):
+            closest_points[ind[1], 4] = self.length + closest_points[ind[1], 4]
         
         x1, y1, s1 = closest_points[0, [0, 1, 4]]
         x2, y2, s2 = closest_points[1, [0, 1, 4]]
@@ -226,7 +260,7 @@ class Track:
     
     def diff_angle(self, angle1: float, angle2: float) -> float:
         """
-        Compute difference between angle1 and angle 2
+        Compute difference between angle1 and angle 2 (angle1 - angle2)
         """
         diff = self.wrap_angle(angle1) - self.wrap_angle(angle2)
         while abs(diff) > np.pi:
@@ -269,7 +303,7 @@ class Track:
     
     def get_cum_distance(self, xy:np.ndarray):
         """
-        Get the cumulative distance of the track at a given xy of shape (N, 2)
+        Get the cumulative distance of the track at a given xy of shape (N,)
         For computing s
         """
         dis = np.zeros(xy.shape[0])
