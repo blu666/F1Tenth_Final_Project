@@ -57,8 +57,8 @@ class Track:
         self.centerline_xy = self.centerline_points[:, :2]
         self.length = self.centerline_points[-1, 4]
         ## Fit spline y = f(s), x = f(s)
-        self.x_spline = Spline(self.centerline_points[:, 4], self.centerline_points[:, 0])
-        self.y_spline = Spline(self.centerline_points[:, 4], self.centerline_points[:, 1])
+        self.x_spline = Spline(self.centerline_points[::5, 4], self.centerline_points[::5, 0])
+        self.y_spline = Spline(self.centerline_points[::5, 4], self.centerline_points[::5, 1])
         if refine:
             self.refine_uniform_waypoint()
         np.savetxt("map/refined_centerline.csv", self.centerline_points, delimiter=",")
@@ -131,13 +131,14 @@ class Track:
         Get required states: [epsi, s, ey] based on xy
         """
         closest_points, ind = self.get_closest_waypoint(x, y, 2)
-        print("@=> Closest points: ", ind)
-        s = closest_points[0, 4]
+        # print("@=> Closest points: ", ind)
+        s = self.get_theta(np.array([x, y]))
         ## Find yaw from centerline
         x_d = self.x_eval_d(s)
         y_d = self.y_eval_d(s)
         psi_des =  np.arctan2(y_d, x_d)
-        epsi = yaw - psi_des
+        # print("psi_des: ", psi_des, "yaw: ", yaw)
+        epsi = self.diff_angle(yaw, psi_des)
         # ey = self.get_ey([x, y], epsi)
         dis_abs = np.linalg.norm([x, y] - closest_points[0, :2])
         direction = np.sign(np.cross([x, y] - closest_points[0, :2], [x_d, y_d])) # determine the sign of ey
@@ -168,8 +169,8 @@ class Track:
         A = np.array([[x2 - x1, y2 - y1], [y2 - y1, -(x2 - x1)]])
         b = np.array([(x2 - x1) * x0 + (y2 - y1) * y0, (x2 - x1) * y1 - (y2 - y1) * x1])
         xc, yc = np.linalg.inv(A).dot(b)
-        d_1c = np.linalg.norm([xc, yc] - [x1, y1])
-        d_2c = np.linalg.norm([xc, yc] - [x2, y2])
+        d_1c = np.linalg.norm(np.array([xc, yc]) - np.array([x1, y1]))
+        d_2c = np.linalg.norm(np.array([xc, yc]) - np.array([x2, y2]))
         s = d_2c * s1 / (d_1c + d_2c) + d_1c * s2 / (d_1c + d_2c)
         # print(closest_points)
         return s
