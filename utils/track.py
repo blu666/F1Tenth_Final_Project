@@ -2,7 +2,7 @@
 import numpy as np
 from dataclasses import dataclass
 from utils.spline import Spline
-
+import numba
 
 # @dataclass
 # class Waypoint:
@@ -11,7 +11,15 @@ from utils.spline import Spline
 #     theta: float
 #     left: float
 #     right: float
-
+# @numba.jit
+# def get_closest_waypoint():
+#     dist = np.linalg.norm(self.centerline_xy - np.array([x, y]), axis=1)
+#     if n == 1:
+#         ind = np.argmin(dist)
+#     else:
+#         dist_sorted = np.argsort(dist)
+#         ind = dist_sorted[:np.min(n, len(dist_sorted))]
+#     return self.centerline_points[ind].reshape(n, -1), ind # 
 
 class Track:
     def __init__(self, centerline_points: str, initialized: bool = False):
@@ -86,6 +94,7 @@ class Track:
         self.centerline_points = new_points
         self.centerline_xy = self.centerline_points[:, :2]
         self.length = self.centerline_points[-1, 4]
+        print("NEW LAP LENGTH: ", self.length)
 
     def load_waypoints(self, csv_path: str):
         self.waypoints = csv_path
@@ -100,12 +109,15 @@ class Track:
         Return: (n, 5) [[x, y, theta, left, right], ...], index
         """
         dist = np.linalg.norm(self.centerline_xy - np.array([x, y]), axis=1)
+        # print(dist.shape)
         if n == 1:
             ind = np.argmin(dist)
         else:
             dist_sorted = np.argsort(dist)
-            ind = dist_sorted[:np.min(n, len(dist_sorted))]
-        return self.centerline_points[ind].reshape(n, -1), ind # 
+            # print(n ,len(dist_sorted))
+            ind = dist_sorted[:min(n, len(dist_sorted))]
+            # print(ind)
+        return self.centerline_points[ind].reshape(n, -1).copy(), ind # 
 
     # def get_theta(self, x: float, y: float) -> float:
     #     """
@@ -118,7 +130,8 @@ class Track:
         """
         Get required states: [epsi, s, ey] based on xy
         """
-        closest_points, _ = self.get_closest_waypoint(x, y)
+        closest_points, ind = self.get_closest_waypoint(x, y, 2)
+        print("@=> Closest points: ", ind)
         s = closest_points[0, 4]
         ## Find yaw from centerline
         x_d = self.x_eval_d(s)
@@ -127,7 +140,7 @@ class Track:
         epsi = yaw - psi_des
         # ey = self.get_ey([x, y], epsi)
         dis_abs = np.linalg.norm([x, y] - closest_points[0, :2])
-        direction = np.sign(np.cross([x, y] - closest_points[0, :2], [x_d, y_d]))
+        direction = np.sign(np.cross([x, y] - closest_points[0, :2], [x_d, y_d])) # determine the sign of ey
         ey = direction * dis_abs # TODO: TEST
         return epsi, s, ey, closest_points[0, :2]
     
@@ -135,14 +148,31 @@ class Track:
         """
         Given a position, estimate progress s on track
         
+        Use 2 closest waypoints to estimate theta
+        
         Input:  [x, y]
         Return: s
         """
         # point = np.array(point)
-        x, y = point[0], point[1]
-        closest_points, _ = self.get_closest_waypoint(x, y)
+        N = self.centerline_points.shape[0]
+        x0, y0 = point[0], point[1]
+        closest_points, ind = self.get_closest_waypoint(x0, y0, 2)
+        if (ind[0] == 0 and ind[1] > 2 * N / 3):
+            closest_points[ind[0], 4] = self.length
+        elif (ind[1] == 0 and ind[0] > 2 * N / 3):
+            closest_points[ind[1], 4] = self.length
+        
+        x1, y1, s1 = closest_points[0, [0, 1, 4]]
+        x2, y2, s2 = closest_points[1, [0, 1, 4]]
+
+        A = np.array([[x2 - x1, y2 - y1], [y2 - y1, -(x2 - x1)]])
+        b = np.array([(x2 - x1) * x0 + (y2 - y1) * y0, (x2 - x1) * y1 - (y2 - y1) * x1])
+        xc, yc = np.linalg.inv(A).dot(b)
+        d_1c = np.linalg.norm([xc, yc] - [x1, y1])
+        d_2c = np.linalg.norm([xc, yc] - [x2, y2])
+        s = d_2c * s1 / (d_1c + d_2c) + d_1c * s2 / (d_1c + d_2c)
         # print(closest_points)
-        return closest_points[0, 4]
+        return s
     
     def update_half_width(self, thetas: np.ndarray):
         """
@@ -248,7 +278,7 @@ class Track:
         
         
 if __name__ == "__main__":
-    a = np.array([1, 1])
+    a, b = np.array([1, 1])
     b = np.array([1, -1])
     print(np.cross(a, b))
     print(a)

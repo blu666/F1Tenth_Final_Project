@@ -28,7 +28,7 @@ def Regression(x, u, lamb):
     return A, B, Error
 
 
-def load_init_ss(path, length=10, dsamp=1):
+def load_init_ss(path, length=10):
     data = np.loadtxt(path, delimiter=',', usecols=(0, 1,2,3,4,5,6,7,8,9,10,11,12)) # (N, 13)
     time, lap, vx, vy, wz, epsi, s, ey, yaw, X, Y, u = data[:, 0], data[:, 1], data[:, 2], data[:, 3], data[:, 4], data[:, 5], data[:, 6], data[:, 7], data[:, 8], data[:, 9], data[:, 10], data[:, 11:]
     # print(data.shape)

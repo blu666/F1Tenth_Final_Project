@@ -115,13 +115,11 @@ class ControllerNode(Node):
         numSS_it, numSS_Points, _, _, QterminalSlack, lmpcParameters = initLMPCParams(track, N) # TODO: change from map to self.Track
         self.lmpcpredictiveModel = PredictiveModel(n, d, track, 4)
         for i in range(4): # add trajectories used for model learning
-            lap_id = int(i % 2)
-            self.lmpcpredictiveModel.addTrajectory(x0_cls[lap_id],u0_cls[lap_id])
+            self.lmpcpredictiveModel.addTrajectory(x0_cls[i],u0_cls[i])
         lmpcParameters.timeVarying     = True 
         self.lmpc = LMPC(numSS_Points, numSS_it, QterminalSlack, lmpcParameters, self.lmpcpredictiveModel)
         for i in range(4): # add trajectories for safe set
-            lap_id = int(i % 2) # we only recorded 2 laps
-            self.lmpc.addTrajectory(x0_cls[lap_id], u0_cls[lap_id], x0_cl_globs[lap_id])
+            self.lmpc.addTrajectory(x0_cls[i], u0_cls[i], x0_cl_globs[i])
         return
 
     def odom_callback(self, pose_msg: Odometry):

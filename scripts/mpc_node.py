@@ -122,7 +122,9 @@ class MPC(Node):
         self.odelta = None
         self.oa = None
         self.init_flag = 0
+        self.pose_msg = None
 
+        self.create_timer(1./30., self.run_mpc)
         # initialize MPC problem
         self.mpc_prob_init()
         self.get_logger().info("MPC Node Initialized")
@@ -131,12 +133,12 @@ class MPC(Node):
         waypoints = np.loadtxt(path, delimiter=",")
         return waypoints
 
-    def pose_callback(self, pose_msg:Odometry):
-        
-        # TODO: extract pose from ROS msg
-        vehicle_position = pose_msg.pose.pose.position.x, pose_msg.pose.pose.position.y
-        vehicle_velocity = pose_msg.twist.twist.linear.x
-        vehicle_orientation = R.from_quat([pose_msg.pose.pose.orientation.x, pose_msg.pose.pose.orientation.y, pose_msg.pose.pose.orientation.z, pose_msg.pose.pose.orientation.w]).as_euler('zyx')[0]
+    def run_mpc(self):
+        if self.pose_msg is None:
+            return
+        vehicle_position = self.pose_msg.pose.pose.position.x, self.pose_msg.pose.pose.position.y
+        vehicle_velocity = self.pose_msg.twist.twist.linear.x
+        vehicle_orientation = R.from_quat([self.pose_msg.pose.pose.orientation.x, self.pose_msg.pose.pose.orientation.y, self.pose_msg.pose.pose.orientation.z, self.pose_msg.pose.pose.orientation.w]).as_euler('zyx')[0]
         vehicle_orientation = vehicle_orientation if vehicle_orientation > 0 else vehicle_orientation + 2*np.pi
         # print("car yaw: %0.4f" % vehicle_orientation)
         
@@ -171,6 +173,12 @@ class MPC(Node):
         drive_msg.drive.acceleration = self.oa[0]
         self.drive_pub.publish(drive_msg)
         self.get_logger().info(f"Steering Angle: {steer_output}, Speed: {speed_output}, acc: {self.oa[0]}")
+    
+    def pose_callback(self, pose_msg:Odometry):
+        
+        # TODO: extract pose from ROS msg
+        self.pose_msg = pose_msg
+        
 
     def mpc_prob_init(self):
         """
