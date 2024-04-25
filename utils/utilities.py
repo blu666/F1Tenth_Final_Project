@@ -28,7 +28,7 @@ def Regression(x, u, lamb):
     return A, B, Error
 
 
-def load_init_ss(path, dsamp=1):
+def load_init_ss(path, length=10):
     data = np.loadtxt(path, delimiter=',', usecols=(0, 1,2,3,4,5,6,7,8,9,10,11,12)) # (N, 13)
     time, lap, vx, vy, wz, epsi, s, ey, yaw, X, Y, u = data[:, 0], data[:, 1], data[:, 2], data[:, 3], data[:, 4], data[:, 5], data[:, 6], data[:, 7], data[:, 8], data[:, 9], data[:, 10], data[:, 11:]
     # print(data.shape)
@@ -37,7 +37,22 @@ def load_init_ss(path, dsamp=1):
     xPID_cl = np.vstack((vx, vy, wz, epsi, s, ey)).T # (n, 6)
     xPID_cl_glob = np.vstack((vx, vy, wz, yaw, X, Y)).T # (n, 6)
     uPID_cl = u # (n, 2)
-    return xPID_cl[::dsamp, :], uPID_cl[::dsamp, :], xPID_cl_glob[::dsamp, :]
+    xPID_cls = []
+    uPID_cls = []
+    xPID_cl_globs = []
+    prev_start_idx = 0
+    for i in range(1, xPID_cl.shape[0]):
+        if xPID_cl[i, 4] - xPID_cl[i-1, 4] < -length / 2:
+            xPID_cls.append(xPID_cl[prev_start_idx:i, :])
+            uPID_cls.append(uPID_cl[prev_start_idx:i, :])
+            xPID_cl_globs.append(xPID_cl_glob[prev_start_idx:i, :])
+            prev_start_idx = i
+    if prev_start_idx < xPID_cl.shape[0]:
+        xPID_cls.append(xPID_cl[prev_start_idx:, :])
+        uPID_cls.append(uPID_cl[prev_start_idx:, :])
+        xPID_cl_globs.append(xPID_cl_glob[prev_start_idx:, :])
+        
+    return xPID_cls, uPID_cls, xPID_cl_globs
 
 
 def wrap(angle):

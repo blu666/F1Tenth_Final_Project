@@ -330,7 +330,7 @@ class LMPC(MPC):
         self.SSStoredPredTraj    = []
         self.SSStoredPredTraj_it = []
 
-        self.zt = np.array([0.0, 0.0, 0.0, 0.0, 10.0, 0.0])
+        self.zt = np.array([0.0, 0.0, 0.0, 0.0, 10.0, 0.0]) ##?
 
         # Initialize the controller iteration
         self.it      = 0

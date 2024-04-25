@@ -33,7 +33,7 @@ class RecordSS(Node):
         self.u = np.zeros(2, dtype=np.float32)
         # self.x = np.zeros(6, dtype=np.float32)
         self.time = 0
-        self.lap = 0
+        self.lap = 1
         self.odom: Odometry = None
         self.map: OccupancyGrid = None
         self.s_prev = 0
@@ -77,7 +77,7 @@ class RecordSS(Node):
             self.time = 0
             self.lap += 1
             print("!===============STARTING NEW LAP {}".format(s_curr - self.s_prev))
-            if self.lap > 1:
+            if self.lap > 4:
                 # Stop recording after two laps
                 self.get_logger().info("Finished recording")
                 self.save_record(self.savepath)
@@ -91,10 +91,11 @@ class RecordSS(Node):
         self.time += 1
 
     def save_record(self, savepath: str):
-        # header="time, x, y, yaw, vel, acc_cmd, steer_cmd, s, lap"
+        header = "self.time, self.lap, vx, vy, wz, epsi, s_curr, ey, yaw, X, Y, self.u[0], self.u[1]"
         np.savetxt(savepath, 
                    self.record, 
-                   fmt='%1.4f,%1.4f,%1.4f,%1.4f,%1.4f,%1.4f,%1.4f,%1.4f,%1.4f,%1.4f,%1.4f,%1.4f,%1.4f'
+                   fmt='%1.6f,%1.6f,%1.6f,%1.6f,%1.6f,%1.6f,%1.6f,%1.6f,%1.6f,%1.6f,%1.6f,%1.6f,%1.6f',
+                    header=header
         )
         self.get_logger().info("Initial SS saved to {}".format(savepath))
         return    
