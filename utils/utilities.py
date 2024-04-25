@@ -93,3 +93,7 @@ class PID:
         vt = self.vt
         self.uPred[0, 0] = - 0.6 * x0[5] - 0.9 * x0[3] + np.max([-0.9, np.min([np.random.randn() * 0.25, 0.9])])
         self.uPred[0, 1] = 1.5 * (vt - x0[0]) + np.max([-0.2, np.min([np.random.randn() * 0.10, 0.2])])
+
+if __name__ == "__main__":
+    x0_cls, u0_cls, x0_cl_globs = load_init_ss('./map/initial_ss.csv', 5)
+    print(x0_cls[0][:5])

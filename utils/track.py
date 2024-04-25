@@ -36,7 +36,7 @@ class Track:
             self.y_spline = Spline(self.centerline_points[:, 4], self.centerline_points[:, 1])
             self.length = self.centerline_points[-1, 4]
 
-    def reset_starting_point(self, x: float, y: float, refine: bool = True):
+    def reset_starting_point_new(self, x: float, y: float, refine: bool = True):
         """
         The order of the waypoints should be rearranged, 
         so that the closest waypoint to the starting position is the first waypoint.
@@ -67,7 +67,7 @@ class Track:
         np.savetxt("map/refined_centerline.csv", self.centerline_points, delimiter=",")
         return
 
-    def reset_starting_point_old(self, x: float, y: float, refine: bool = True):
+    def reset_starting_point(self, x: float, y: float, refine: bool = True):
         """
         The order of the waypoints should be rearranged, 
         so that the closest waypoint to the starting position is the first waypoint.
@@ -89,8 +89,8 @@ class Track:
         self.length = self.centerline_points[-1, 4]
         ## Fit spline y = f(s), x = f(s)
         
-        self.x_spline = Spline(self.centerline_points[::5, 4], self.centerline_points[::5, 0])
-        self.y_spline = Spline(self.centerline_points[::5, 4], self.centerline_points[::5, 1])
+        self.x_spline = Spline(self.centerline_points[:, 4], self.centerline_points[:, 0])
+        self.y_spline = Spline(self.centerline_points[:, 4], self.centerline_points[:, 1])
         if refine:
             self.refine_uniform_waypoint()
         np.savetxt("map/refined_centerline.csv", self.centerline_points, delimiter=",")
@@ -166,7 +166,7 @@ class Track:
         """
         closest_points, ind = self.get_closest_waypoint(x, y, 2)
         print("@=> Closest points: ", ind)
-        s = closest_points[0, 4]
+        s = self.get_theta(np.array([x, y]))
         ## Find yaw from centerline
         x_d = self.x_eval_d(s)
         y_d = self.y_eval_d(s)
@@ -202,8 +202,8 @@ class Track:
         A = np.array([[x2 - x1, y2 - y1], [y2 - y1, -(x2 - x1)]])
         b = np.array([(x2 - x1) * x0 + (y2 - y1) * y0, (x2 - x1) * y1 - (y2 - y1) * x1])
         xc, yc = np.linalg.inv(A).dot(b)
-        d_1c = np.linalg.norm([xc, yc] - [x1, y1])
-        d_2c = np.linalg.norm([xc, yc] - [x2, y2])
+        d_1c = np.linalg.norm(np.array([xc, yc]) - np.array([x1, y1]))
+        d_2c = np.linalg.norm(np.array([xc, yc]) - np.array([x2, y2]))
         s = d_2c * s1 / (d_1c + d_2c) + d_1c * s2 / (d_1c + d_2c)
         # print(closest_points)
         return s

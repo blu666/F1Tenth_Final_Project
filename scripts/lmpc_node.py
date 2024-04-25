@@ -61,7 +61,7 @@ class ControllerNode(Node):
         self.odom: Odometry = None  # Odometry message
 
         #==== Create pub sub
-        self.create_subscription(Odometry, 'ego_racecar/odom', self.odom_callback, 10)
+        self.create_subscription(Odometry, '/ego_racecar/odom', self.odom_callback, 10)
         self.drive_publisher = self.create_publisher(AckermannDriveStamped, '/drive', 10)
         self.waypoints_publisher = self.create_publisher(MarkerArray, '/pure_pursuit/waypoints', 10)
         self.create_timer(self.dt, self.lmpc_run) # RUN LMPC WITH FIXED RATE
@@ -71,6 +71,7 @@ class ControllerNode(Node):
         if self.first_run or self.odom is None:
             #===> Not yet initialized
             return
+        curr_odom = deepcopy(self.odom)
         X, Y = self.odom.pose.pose.position.x, self.odom.pose.pose.position.y
         self.map_to_car_translation = np.array([self.odom.pose.pose.position.x,
                                                 self.odom.pose.pose.position.y,
@@ -79,12 +80,13 @@ class ControllerNode(Node):
                                                 self.odom.pose.pose.orientation.y,
                                                 self.odom.pose.pose.orientation.z,
                                                 self.odom.pose.pose.orientation.w])
+        
         yaw = self.map_to_car_rotation.as_euler('zyx')[0]
-        vx, vy = self.odom.twist.twist.linear.x, self.odom.twist.twist.linear.y
+        vx, vy = self.odom.twist.twist.linear.x, self.odom.twist.twist.linear.y + np.random.randn() * 1e-6
         wz = self.odom.twist.twist.angular.z
         epsi, s_curr, ey, _ = self.Track.get_states(X, Y, yaw)
         self.xt = np.array([vx, vy, wz, epsi, s_curr, ey])
-        self.xt_glob = np.array([vx, vy, wz, yaw, X, Y]) 
+        self.xt_glob = np.array([vx, vy, wz, yaw, X, Y])
         self.lmpc.solve(self.xt)
         u = self.lmpc.get_control()
         self.lmpc.addPoint(self.xt, u) # at iteration j add data to SS^{j-1} 
@@ -116,7 +118,7 @@ class ControllerNode(Node):
         self.lmpcpredictiveModel = PredictiveModel(n, d, track, 4)
         for i in range(4): # add trajectories used for model learning
             self.lmpcpredictiveModel.addTrajectory(x0_cls[i],u0_cls[i])
-        lmpcParameters.timeVarying     = True 
+        lmpcParameters.timeVarying     = True
         self.lmpc = LMPC(numSS_Points, numSS_it, QterminalSlack, lmpcParameters, self.lmpcpredictiveModel)
         for i in range(4): # add trajectories for safe set
             self.lmpc.addTrajectory(x0_cls[i], u0_cls[i], x0_cl_globs[i])
