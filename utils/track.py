@@ -176,7 +176,7 @@ class Track:
         x_d = self.x_eval_d(s)
         y_d = self.y_eval_d(s)
         psi_des =  np.arctan2(y_d, x_d)
-        epsi = self.diff_angle(yaw, psi_des)
+        epsi = yaw - psi_des
         # ey = self.get_ey([x, y], epsi)
         dis_abs = np.linalg.norm([x, y] - closest_points[0, :2])
         direction = np.sign(np.cross([x, y] - closest_points[0, :2], [x_d, y_d])) # determine the sign of ey
