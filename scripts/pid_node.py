@@ -182,7 +182,7 @@ class MPC(Node):
         # if abs(steer) > 0.35:
         #     vel = 0.5
         drive_msg.drive.speed = vel
-        # drive_msg.drive.acceleration = accel
+        drive_msg.drive.acceleration = accel
         self.drive_pub.publish(drive_msg)
         
         if self.xpid is None:
