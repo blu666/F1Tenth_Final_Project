@@ -23,7 +23,7 @@ from rclpy.parameter import Parameter, ParameterType
 from sensor_msgs.msg import PointCloud
 from utils.params import CarParams, load_default_car_params
 from utils.track import Track
-from utils.utilities import load_init_ss
+from utils.utilities import Regression, load_init_ss
 from utils.initControllerParameters import initLMPCParams
 from utils.PredictiveModel import PredictiveModel
 from scipy import sparse
@@ -80,8 +80,12 @@ class ControllerNode(Node):
                                                 self.odom.pose.pose.orientation.y,
                                                 self.odom.pose.pose.orientation.z,
                                                 self.odom.pose.pose.orientation.w])
-        
+
         yaw = self.map_to_car_rotation.as_euler('zyx')[0]
+        # dpos = np.array([np.cos(yaw), np.sin(yaw)])
+        # dpos = normalize_vector(dpos)
+        # X += dpos[0] * 0.2
+        # Y += dpos[1] * 0.2
         vx, vy = self.odom.twist.twist.linear.x, self.odom.twist.twist.linear.y + np.random.randn() * 1e-6
         wz = self.odom.twist.twist.angular.z
         epsi, s_curr, ey, _ = self.Track.get_states(X, Y, yaw)
@@ -118,7 +122,11 @@ class ControllerNode(Node):
         self.lmpcpredictiveModel = PredictiveModel(n, d, track, 4)
         for i in range(4): # add trajectories used for model learning
             self.lmpcpredictiveModel.addTrajectory(x0_cls[i],u0_cls[i])
-        lmpcParameters.timeVarying     = True
+        A, B, Error = Regression(x0_cls[0], u0_cls[0], lamb=1e-6)
+        print(Error)
+        lmpcParameters.A = A
+        lmpcParameters.B = B
+        lmpcParameters.timeVarying     = False
         self.lmpc = LMPC(numSS_Points, numSS_it, QterminalSlack, lmpcParameters, self.lmpcpredictiveModel)
         for i in range(4): # add trajectories for safe set
             self.lmpc.addTrajectory(x0_cls[i], u0_cls[i], x0_cl_globs[i])
@@ -146,9 +154,9 @@ class ControllerNode(Node):
     def apply_control(self, steer, accel, vx):
         # line 938: apply_control
         vel = vx + accel * self.dt
-        self.get_logger().info(f"accel_cmd: {accel}, vel_cmd: {vel}, steer_cmd: {steer}")
+        
         steer = np.clip(steer, -self.car.STEER_MAX, self.car.STEER_MAX)
-
+        self.get_logger().info(f"accel_cmd: {accel}, vel_cmd: {vel}, steer_cmd: {steer}")
         drive_msg = AckermannDriveStamped()
         drive_msg.header.stamp = self.get_clock().now().to_msg()
         drive_msg.header.frame_id = 'base_link'

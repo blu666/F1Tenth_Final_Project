@@ -217,6 +217,7 @@ class MPC():
                 Gu[(self.n + i*self.n):(self.n + i*self.n + self.n), (i*self.d):(i*self.d + self.d)] = -self.B[i]
                 L[(self.n + i*self.n):(self.n + i*self.n + self.n)]                                  =  self.C[i]
             else:
+                # print("self.A: ", self.A)
                 Gx[(self.n + i*self.n):(self.n + i*self.n + self.n), (i*self.n):(i*self.n + self.n)] = -self.A
                 Gu[(self.n + i*self.n):(self.n + i*self.n + self.n), (i*self.d):(i*self.d + self.d)] = -self.B
 
