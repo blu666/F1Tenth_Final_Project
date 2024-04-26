@@ -170,7 +170,7 @@ class Track:
         Get required states: [epsi, s, ey] based on xy
         """
         closest_points, ind = self.get_closest_waypoint(x, y, 2)
-        print("@=> Closest points: ", ind)
+        # print("@=> Closest points: ", ind)
         s = self.get_theta(np.array([x, y]))
         ## Find yaw from centerline
         x_d = self.x_eval_d(s)
@@ -197,7 +197,7 @@ class Track:
         x0, y0 = point[0], point[1]
         closest_points, ind = self.get_closest_waypoint(x0, y0, 2)
         if (ind[0] < N / 4 and ind[1] > 2 * N / 3):
-            closest_points[ind[0], 4] = self.length + closest_points[ind[1], 4]
+            closest_points[ind[0], 4] = self.length + closest_points[ind[0], 4]
         elif (ind[1] < N / 4 and ind[0] > 2 * N / 3):
             closest_points[ind[1], 4] = self.length + closest_points[ind[1], 4]
         
@@ -324,7 +324,20 @@ class Track:
         dis[1:] = np.linalg.norm(xy[1:, :] - xy[:-1, :], axis=1) # (n-1)
         return np.cumsum(dis) #(n, )
         
-        
+    def track_to_global(self, e_y, e_yaw, s):
+        # line 557: track_to_global
+        dx_ds = self.x_eval_d(s)
+        dy_ds = self.y_eval_d(s)
+
+        proj = np.array([self.x_eval(s), self.y_eval(s)])
+        pos = proj + normalize_vector(np.array([-dy_ds, dx_ds])) * e_y
+        yaw = e_yaw + np.arctan2(dy_ds, dx_ds)
+        return np.array([pos[0], pos[1], yaw])
+    
+def normalize_vector(vec):
+    norm = np.linalg.norm(vec)
+    return vec / norm
+    
 if __name__ == "__main__":
     a, b = np.array([1, 1])
     b = np.array([1, -1])

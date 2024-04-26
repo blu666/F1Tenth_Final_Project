@@ -453,7 +453,7 @@ class LMPC(MPC):
             x: closed-loop trajectory
             u: applied inputs
         """
-        Cost = 10000 * np.ones((x.shape[0]))  # The cost has the same elements of the vector x --> time +1
+        Cost = 10000 * np.ones((x.shape[0]))  # The cost has the sam@=>Lapping: Finished running lap 0, time 777e elements of the vector x --> time +1
         # Now compute the cost moving backwards in a Dynamic Programming (DP) fashion.
         # We start from the last element of the vector x and we sum the running cost
         for i in range(0, x.shape[0]):
@@ -488,14 +488,18 @@ class LMPC(MPC):
         u = self.uSS[it]
         oneVec = np.ones((x.shape[0], 1))
         x0Vec = (np.dot(np.array([zt]).T, oneVec.T)).T
-        diff = x - x0Vec
-        norm = la.norm(diff, 1, axis=1)
+        diff = x[:, 4:] - x0Vec[:, 4:]
+        norm = la.norm(diff, 2, axis=1)
         MinNorm = np.argmin(norm)
 
-        if (MinNorm - numPoints/2 >= 0):
-            indexSSandQfun = range(-int(numPoints/2) + MinNorm, int(numPoints/2) + MinNorm + 1)
+        if (MinNorm - numPoints/2 < 0):
+            indexSSandQfun = list(range(x.shape[0] - (int(numPoints/2) - MinNorm + 1), x.shape[0])) + list(range(0, MinNorm + int(numPoints/2)))
+            # print(len(indexSSandQfun), numPoints)
+        elif (MinNorm + numPoints/2 > x.shape[0]):
+            indexSSandQfun = list(range(-int(numPoints/2) + MinNorm, x.shape[0])) + list(range(0, int(numPoints/2) - (x.shape[0] - MinNorm - 1)))
+            # print(indexSSandQfun)
         else:
-            indexSSandQfun = range(MinNorm, MinNorm + int(numPoints))
+            indexSSandQfun = list(range(-int(numPoints/2) + MinNorm, int(numPoints/2) + MinNorm + 1))
 
         SS_Points  = x[indexSSandQfun, :].T
         SSu_Points = u[indexSSandQfun, :].T

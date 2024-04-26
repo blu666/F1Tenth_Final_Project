@@ -23,7 +23,7 @@ from rclpy.parameter import Parameter, ParameterType
 from sensor_msgs.msg import PointCloud
 from utils.params import CarParams, load_default_car_params
 from utils.track import Track
-from utils.utilities import load_init_ss
+from utils.utilities import Regression, load_init_ss
 from utils.initControllerParameters import initLMPCParams
 from utils.PredictiveModel import PredictiveModel
 from scipy import sparse
@@ -64,6 +64,7 @@ class ControllerNode(Node):
         self.create_subscription(Odometry, '/ego_racecar/odom', self.odom_callback, 10)
         self.drive_publisher = self.create_publisher(AckermannDriveStamped, '/drive', 10)
         self.waypoints_publisher = self.create_publisher(MarkerArray, '/pure_pursuit/waypoints', 10)
+        self.testpoint_publisher = self.create_publisher(MarkerArray, '/pure_pursuit/testpoints', 10)
         self.create_timer(self.dt, self.lmpc_run) # RUN LMPC WITH FIXED RATE
         self.get_logger().info("@=>Init: LMPC Node Initialized")
 
@@ -80,8 +81,12 @@ class ControllerNode(Node):
                                                 self.odom.pose.pose.orientation.y,
                                                 self.odom.pose.pose.orientation.z,
                                                 self.odom.pose.pose.orientation.w])
-        
+
         yaw = self.map_to_car_rotation.as_euler('zyx')[0]
+        # dpos = np.array([np.cos(yaw), np.sin(yaw)])
+        # dpos = normalize_vector(dpos)
+        # X += dpos[0] * 0.2
+        # Y += dpos[1] * 0.2
         vx, vy = self.odom.twist.twist.linear.x, self.odom.twist.twist.linear.y + np.random.randn() * 1e-6
         wz = self.odom.twist.twist.angular.z
         epsi, s_curr, ey, _ = self.Track.get_states(X, Y, yaw)
@@ -92,11 +97,11 @@ class ControllerNode(Node):
         self.lmpc.addPoint(self.xt, u) # at iteration j add data to SS^{j-1} 
         #==== Check if the car has passed the starting line
         if s_curr - self.s_prev < -self.Track.length / 3.:
-            print("@=>Lapping: Finished runing lap {}, time {}".format(self.lap, self.time))
+            print("@=>Lapping: Finished running lap {}, time {}".format(self.lap, self.time))
             self.time = 0
             self.lap += 1
             #==== Lap finished, add to safe set
-            self.lmpc.addTrajectory(self.x_cl, self.u_cl, self.x_cl_glob)
+            self.lmpc.addTrajectory(np.array(self.x_cl), np.array(self.u_cl), np.array(self.x_cl_glob))
             #==== reset recorded trajectory 
             self.x_cl = [self.xt]
             self.x_cl_glob = [self.xt_glob]
@@ -110,6 +115,15 @@ class ControllerNode(Node):
         self.s_prev = s_curr
         self.apply_control(u[0], u[1], vx)
 
+        ss_points = self.lmpc.Succ_SS_PointSelectedTot
+        pub_states = np.empty((ss_points.shape[1], 2))
+        for i in range(ss_points.shape[1]):
+            x, y, yaw = self.Track.track_to_global(-ss_points[5, i], ss_points[3, i], ss_points[4, i])
+            pub_states[i, 0] = x
+            pub_states[i, 1] = y
+        # print(pub_states.shape, ss_points.shape)
+        self.publish_testpoints(pub_states)
+
     def initialize_lmpc(self, N, n, d, track):
         x0_cls, u0_cls, x0_cl_globs = load_init_ss('./map/initial_ss.csv', 5)
         # self.get_logger().info("@=>Init: initial safety set lenghth: {}".format(len(x0_cl)))
@@ -118,7 +132,11 @@ class ControllerNode(Node):
         self.lmpcpredictiveModel = PredictiveModel(n, d, track, 4)
         for i in range(4): # add trajectories used for model learning
             self.lmpcpredictiveModel.addTrajectory(x0_cls[i],u0_cls[i])
-        lmpcParameters.timeVarying     = True
+        A, B, Error = Regression(x0_cls[0], u0_cls[0], lamb=1e-6)
+        print("error", Error)
+        lmpcParameters.A = A
+        lmpcParameters.B = B
+        lmpcParameters.timeVarying     = False
         self.lmpc = LMPC(numSS_Points, numSS_it, QterminalSlack, lmpcParameters, self.lmpcpredictiveModel)
         for i in range(4): # add trajectories for safe set
             self.lmpc.addTrajectory(x0_cls[i], u0_cls[i], x0_cl_globs[i])
@@ -146,9 +164,9 @@ class ControllerNode(Node):
     def apply_control(self, steer, accel, vx):
         # line 938: apply_control
         vel = vx + accel * self.dt
-        self.get_logger().info(f"accel_cmd: {accel}, vel_cmd: {vel}, steer_cmd: {steer}")
+        
         steer = np.clip(steer, -self.car.STEER_MAX, self.car.STEER_MAX)
-
+        self.get_logger().info(f"accel_cmd: {accel}, vel_cmd: {vel}, steer_cmd: {steer}")
         drive_msg = AckermannDriveStamped()
         drive_msg.header.stamp = self.get_clock().now().to_msg()
         drive_msg.header.frame_id = 'base_link'
@@ -157,6 +175,32 @@ class ControllerNode(Node):
         drive_msg.drive.speed = vel
         # drive_msg.drive.acceleration = accel
         self.drive_publisher.publish(drive_msg)
+    
+    def publish_testpoints(self, testpoints):
+        markerArray = MarkerArray()
+        for i, tp in enumerate(testpoints):
+            marker = Marker()
+            marker.header.frame_id = "map"
+            marker.header.stamp = self.get_clock().now().to_msg()
+            marker.id = i
+            marker.type = marker.SPHERE
+            marker.action = marker.ADD
+            marker.pose.position.x = tp[0]
+            marker.pose.position.y = tp[1]
+            marker.pose.position.z = 0.0
+            marker.pose.orientation.x = 0.0
+            marker.pose.orientation.y = 0.0
+            marker.pose.orientation.z = 0.0
+            marker.pose.orientation.w = 1.0
+            marker.scale.x = 0.21
+            marker.scale.y = 0.21
+            marker.scale.z = 0.21
+            marker.color.a = 1.0
+            marker.color.r = 0.0
+            marker.color.g = 0.0
+            marker.color.b = 1.0
+            markerArray.markers.append(marker)
+        self.testpoint_publisher.publish(markerArray)
 
 def normalize_vector(vec):
     norm = np.linalg.norm(vec)
