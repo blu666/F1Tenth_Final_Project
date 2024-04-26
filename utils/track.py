@@ -68,7 +68,6 @@ class Track:
         self.y_spline = Spline(spline_s, spline_y, k=self.k)
         if refine:
             self.refine_uniform_waypoint()
-        np.savetxt("map/refined_centerline.csv", self.centerline_points, delimiter=",")
         np.savetxt("map/refined_race3_centerline.csv", self.centerline_points[:, :-1], delimiter=",")
         return
 

@@ -74,7 +74,7 @@ class MPC(Node):
         # self.mpc_prob_init()
 
         self.car: CarParams = load_default_car_params()
-        self.pid_init(1.0)
+        self.pid_init(2.0)
         
         self.create_timer(1./30., self.run_pid)
         self.get_logger().info("MPC Node Initialized")
@@ -86,8 +86,8 @@ class MPC(Node):
         self.pose_msg = pose_msg
         if self.first_run:
             #==== Initialize Track & reset starting point to spawn point
-            self.Track = Track("./map/levine/centerline.csv")
-            self.Track.reset_starting_point(pose_msg.pose.pose.position.x,
+            self.Track = Track("./map/race3/centerline.csv", None)
+            self.Track.reset_starting_point_new(pose_msg.pose.pose.position.x,
                                             pose_msg.pose.pose.position.y,
                                             refine=True)
             self.publish_waypoints(self.Track.centerline_xy)
@@ -143,12 +143,12 @@ class MPC(Node):
             self.get_logger().info(f"Lap {self.lap} Finished")
             self.lap += 1
 
-            if self.lap >= self.pid_laps:
-                self.mode = 1
-                self.get_logger().info("Switching to MPC")
-                np.savetxt("map/pid_x.csv", self.xpid, delimiter=",", fmt='%.4f')
-                np.savetxt("map/pid_u.csv", self.upid, delimiter=",", fmt='%.4f')
-                self.destroy_node()
+            # if self.lap >= self.pid_laps:
+            #     self.mode = 1
+            #     self.get_logger().info("Switching to MPC")
+            #     np.savetxt("map/pid_x.csv", self.xpid, delimiter=",", fmt='%.4f')
+            #     np.savetxt("map/pid_u.csv", self.upid, delimiter=",", fmt='%.4f')
+                # self.destroy_node()
 
             # ss = np.array(self.ss)
             # print(ss.shape, ss)
@@ -164,7 +164,7 @@ class MPC(Node):
 
     def pid_solve(self, x0):
         p_acc = 1.5
-        p_longitudinal_dist = -2.5
+        p_longitudinal_dist = -3.0
         p_yaw = -1.5
         self.uPred[0, 0] = p_longitudinal_dist * x0[5] + p_yaw * x0[3]
         self.uPred[0, 1] = p_acc * (self.vt - x0[0])
