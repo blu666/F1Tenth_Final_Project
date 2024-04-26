@@ -130,7 +130,7 @@ class ControllerNode(Node):
         # mpcParam, ltvmpcParam = initMPCParams(n, d, N, vt)
         numSS_it, numSS_Points, _, _, QterminalSlack, lmpcParameters = initLMPCParams(track, N) # TODO: change from map to self.Track
         self.lmpcpredictiveModel = PredictiveModel(n, d, track, 4)
-        for i in range(4): # add trajectories used for model learning
+        for i in range(1, 5): # add trajectories used for model learning
             self.lmpcpredictiveModel.addTrajectory(x0_cls[i],u0_cls[i])
         A, B, Error = Regression(x0_cls[0], u0_cls[0], lamb=1e-6)
         print("error", Error)
@@ -138,7 +138,7 @@ class ControllerNode(Node):
         lmpcParameters.B = B
         lmpcParameters.timeVarying     = False
         self.lmpc = LMPC(numSS_Points, numSS_it, QterminalSlack, lmpcParameters, self.lmpcpredictiveModel)
-        for i in range(4): # add trajectories for safe set
+        for i in range(1, 5): # add trajectories for safe set
             self.lmpc.addTrajectory(x0_cls[i], u0_cls[i], x0_cl_globs[i])
         return
 
