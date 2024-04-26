@@ -172,16 +172,10 @@ class Track:
         closest_points, ind = self.get_closest_waypoint(x, y, 2)
         # print("@=> Closest points: ", ind)
         s = self.get_theta(np.array([x, y]))
+        e_y, e_yaw, s = self.global_to_track(x, y, yaw, s)
         ## Find yaw from centerline
-        x_d = self.x_eval_d(s)
-        y_d = self.y_eval_d(s)
-        psi_des =  np.arctan2(y_d, x_d)
-        epsi = self.diff_angle(yaw, psi_des)
-        # ey = self.get_ey([x, y], epsi)
-        dis_abs = np.linalg.norm([x, y] - closest_points[0, :2])
-        direction = np.sign(np.cross([x, y] - closest_points[0, :2], [x_d, y_d])) # determine the sign of ey
-        ey = -direction * dis_abs # TODO: TEST
-        return epsi, s, ey, closest_points[0, :2]
+        
+        return e_yaw, s, e_y, closest_points[0, :2]
     
     def get_theta(self, point:np.ndarray) -> float:
         """
@@ -234,11 +228,11 @@ class Track:
     
     def global_to_track(self, x, y, yaw, s):
         # line 543: global_to_track
-        x_proj = self.Track.x_eval(s)
-        y_proj = self.Track.y_eval(s)
+        x_proj = self.x_eval(s)
+        y_proj = self.y_eval(s)
         e_y = np.sqrt((x - x_proj)**2 + (y - y_proj)**2)
-        dx_ds = self.Track.x_eval_d(s)
-        dy_ds = self.Track.y_eval_d(s)
+        dx_ds = self.x_eval_d(s)
+        dy_ds = self.y_eval_d(s)
         if dx_ds * (y - y_proj) - dy_ds * (x - x_proj) > 0:
             e_y = -e_y
         e_yaw = yaw - np.arctan2(dy_ds, dx_ds)
@@ -246,8 +240,7 @@ class Track:
             e_yaw -= 2*np.pi
         while e_yaw < -np.pi:
             e_yaw += 2*np.pi
-        return np.array([e_y, e_yaw, s])
-
+        return e_y, e_yaw, s
     
     def update_half_width(self, thetas: np.ndarray):
         """
@@ -350,17 +343,8 @@ class Track:
         dis = np.zeros(xy.shape[0])
         dis[1:] = np.linalg.norm(xy[1:, :] - xy[:-1, :], axis=1) # (n-1)
         return np.cumsum(dis) #(n, )
-        
-    def track_to_global(self, e_y, e_yaw, s):
-        # line 557: track_to_global
-        dx_ds = self.x_eval_d(s)
-        dy_ds = self.y_eval_d(s)
 
-        proj = np.array([self.x_eval(s), self.y_eval(s)])
-        pos = proj + normalize_vector(np.array([-dy_ds, dx_ds])) * e_y
-        yaw = e_yaw + np.arctan2(dy_ds, dx_ds)
-        return np.array([pos[0], pos[1], yaw])
-    
+
 def normalize_vector(vec):
     norm = np.linalg.norm(vec)
     return vec / norm
