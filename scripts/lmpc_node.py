@@ -115,17 +115,26 @@ class ControllerNode(Node):
         self.s_prev = s_curr
         self.apply_control(u[0], u[1], vx)
 
-        ss_points = self.lmpc.Succ_SS_PointSelectedTot
-        pub_states = np.empty((ss_points.shape[1], 2))
-        for i in range(ss_points.shape[1]):
-            x, y, yaw = self.Track.track_to_global(-ss_points[5, i], ss_points[3, i], ss_points[4, i])
-            pub_states[i, 0] = x
-            pub_states[i, 1] = y
-        # print(pub_states.shape, ss_points.shape)
-        self.publish_testpoints(pub_states)
+        # ss_points = self.lmpc.Succ_SS_PointSelectedTot
+        # pub_states = np.empty((ss_points.shape[1], 2))
+        # for i in range(ss_points.shape[1]):
+        #     x, y, yaw = self.Track.track_to_global(-ss_points[5, i], ss_points[3, i], ss_points[4, i])
+        #     pub_states[i, 0] = x
+        #     pub_states[i, 1] = y
+        # # print(pub_states.shape, ss_points.shape)
+        # self.publish_testpoints(pub_states)
 
     def initialize_lmpc(self, N, n, d, track):
         x0_cls, u0_cls, x0_cl_globs = load_init_ss('./map/initial_ss.csv', 5)
+        ss_points = x0_cls[0]
+        pub_states = np.empty((ss_points.shape[0], 2))
+        for i in range(ss_points.shape[0]):
+            x, y, yaw = self.Track.track_to_global(-ss_points[i, 5], ss_points[i, 3], ss_points[i, 4])
+            pub_states[i, 0] = x
+            pub_states[i, 1] = y
+        print(pub_states.shape, ss_points.shape)
+        self.publish_testpoints(pub_states)
+        # self.publish_testpoints(x0_cl_globs[0][:, 4:6])
         # self.get_logger().info("@=>Init: initial safety set lenghth: {}".format(len(x0_cl)))
         # mpcParam, ltvmpcParam = initMPCParams(n, d, N, vt)
         numSS_it, numSS_Points, _, _, QterminalSlack, lmpcParameters = initLMPCParams(track, N) # TODO: change from map to self.Track
@@ -174,7 +183,7 @@ class ControllerNode(Node):
         # drive_msg.drive.steering_angle_velocity = 1.0
         drive_msg.drive.speed = vel
         # drive_msg.drive.acceleration = accel
-        self.drive_publisher.publish(drive_msg)
+        # self.drive_publisher.publish(drive_msg)
     
     def publish_testpoints(self, testpoints):
         markerArray = MarkerArray()

@@ -232,6 +232,23 @@ class Track:
         yaw = e_yaw + np.arctan2(dy_ds, dx_ds) # e_yaw = yaw - yaw_des
         return np.array([pos[0], pos[1], yaw])
     
+    def global_to_track(self, x, y, yaw, s):
+        # line 543: global_to_track
+        x_proj = self.Track.x_eval(s)
+        y_proj = self.Track.y_eval(s)
+        e_y = np.sqrt((x - x_proj)**2 + (y - y_proj)**2)
+        dx_ds = self.Track.x_eval_d(s)
+        dy_ds = self.Track.y_eval_d(s)
+        if dx_ds * (y - y_proj) - dy_ds * (x - x_proj) > 0:
+            e_y = -e_y
+        e_yaw = yaw - np.arctan2(dy_ds, dx_ds)
+        while e_yaw > np.pi:
+            e_yaw -= 2*np.pi
+        while e_yaw < -np.pi:
+            e_yaw += 2*np.pi
+        return np.array([e_y, e_yaw, s])
+
+    
     def update_half_width(self, thetas: np.ndarray):
         """
         Update left right TODO
