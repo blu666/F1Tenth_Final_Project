@@ -165,7 +165,7 @@ class Track:
         Get required states: [epsi, s, ey] based on xy
         """
         closest_points, ind = self.get_closest_waypoint(x, y, 2)
-        print("@=> Closest points: ", ind)
+        # print("@=> Closest points: ", ind)
         s = self.get_theta(np.array([x, y]))
         ## Find yaw from centerline
         x_d = self.x_eval_d(s)
@@ -192,7 +192,7 @@ class Track:
         x0, y0 = point[0], point[1]
         closest_points, ind = self.get_closest_waypoint(x0, y0, 2)
         if (ind[0] < N / 4 and ind[1] > 2 * N / 3):
-            closest_points[ind[0], 4] = self.length + closest_points[ind[1], 4]
+            closest_points[ind[0], 4] = self.length + closest_points[ind[0], 4]
         elif (ind[1] < N / 4 and ind[0] > 2 * N / 3):
             closest_points[ind[1], 4] = self.length + closest_points[ind[1], 4]
         

@@ -37,8 +37,8 @@ def initLMPCParams(track, N):
     # print("bx", bx)
 
     Fu = np.kron(np.eye(2), np.array([1, -1])).T
-    bu = np.array([[0.5],   # -Min Steering
-                   [0.5],   # Max Steering
+    bu = np.array([[0.41],   # -Min Steering
+                   [0.41],   # Max Steering
                    [10.0],  # -Min Acceleration
                    [10.0]]) # Max Acceleration
 

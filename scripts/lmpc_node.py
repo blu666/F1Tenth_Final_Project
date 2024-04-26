@@ -96,11 +96,11 @@ class ControllerNode(Node):
         self.lmpc.addPoint(self.xt, u) # at iteration j add data to SS^{j-1} 
         #==== Check if the car has passed the starting line
         if s_curr - self.s_prev < -self.Track.length / 3.:
-            print("@=>Lapping: Finished runing lap {}, time {}".format(self.lap, self.time))
+            print("@=>Lapping: Finished running lap {}, time {}".format(self.lap, self.time))
             self.time = 0
             self.lap += 1
             #==== Lap finished, add to safe set
-            self.lmpc.addTrajectory(self.x_cl, self.u_cl, self.x_cl_glob)
+            self.lmpc.addTrajectory(np.array(self.x_cl), np.array(self.u_cl), np.array(self.x_cl_glob))
             #==== reset recorded trajectory 
             self.x_cl = [self.xt]
             self.x_cl_glob = [self.xt_glob]
@@ -123,7 +123,7 @@ class ControllerNode(Node):
         for i in range(4): # add trajectories used for model learning
             self.lmpcpredictiveModel.addTrajectory(x0_cls[i],u0_cls[i])
         A, B, Error = Regression(x0_cls[0], u0_cls[0], lamb=1e-6)
-        print(Error)
+        print("error", Error)
         lmpcParameters.A = A
         lmpcParameters.B = B
         lmpcParameters.timeVarying     = False
