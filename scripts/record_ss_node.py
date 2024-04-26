@@ -113,7 +113,7 @@ class RecordSS(Node):
             self.time = 0
             self.lap += 1
             print("!===============STARTING NEW LAP {}".format(s_curr - self.s_prev))
-            if self.lap > 4:
+            if self.lap > 5:
                 # Stop recording after two laps
                 self.get_logger().info("Finished recording")
                 self.save_record(self.savepath)

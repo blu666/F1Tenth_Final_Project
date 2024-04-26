@@ -180,7 +180,7 @@ class Track:
         # ey = self.get_ey([x, y], epsi)
         dis_abs = np.linalg.norm([x, y] - closest_points[0, :2])
         direction = np.sign(np.cross([x, y] - closest_points[0, :2], [x_d, y_d])) # determine the sign of ey
-        ey = direction * dis_abs # TODO: TEST
+        ey = -direction * dis_abs # TODO: TEST
         return epsi, s, ey, closest_points[0, :2]
     
     def get_theta(self, point:np.ndarray) -> float:
@@ -221,6 +221,16 @@ class Track:
         
         
         return
+    
+    def track_to_global(self, e_y, e_yaw, s):
+        # line 557: track_to_global
+        dx_ds = self.x_eval_d(s)
+        dy_ds = self.y_eval_d(s)
+
+        proj = np.array([self.x_eval(s), self.y_eval(s)])
+        pos = proj + normalize_vector(np.array([-dy_ds, dx_ds])) * e_y
+        yaw = e_yaw + np.arctan2(dy_ds, dx_ds) # e_yaw = yaw - yaw_des
+        return np.array([pos[0], pos[1], yaw])
     
     def update_half_width(self, thetas: np.ndarray):
         """
