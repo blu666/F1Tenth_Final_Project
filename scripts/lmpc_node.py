@@ -64,6 +64,7 @@ class ControllerNode(Node):
         self.create_subscription(Odometry, '/ego_racecar/odom', self.odom_callback, 10)
         self.drive_publisher = self.create_publisher(AckermannDriveStamped, '/drive', 10)
         self.waypoints_publisher = self.create_publisher(MarkerArray, '/pure_pursuit/waypoints', 10)
+        self.testpoint_publisher = self.create_publisher(MarkerArray, '/pure_pursuit/testpoints', 10)
         self.create_timer(self.dt, self.lmpc_run) # RUN LMPC WITH FIXED RATE
         self.get_logger().info("@=>Init: LMPC Node Initialized")
 
@@ -114,6 +115,15 @@ class ControllerNode(Node):
         self.s_prev = s_curr
         self.apply_control(u[0], u[1], vx)
 
+        ss_points = self.lmpc.Succ_SS_PointSelectedTot
+        pub_states = np.empty((ss_points.shape[1], 2))
+        for i in range(ss_points.shape[1]):
+            x, y, yaw = self.Track.track_to_global(ss_points[5, i], ss_points[3, i], ss_points[4, i])
+            pub_states[i, 0] = x
+            pub_states[i, 1] = y
+        # print(pub_states.shape, ss_points.shape)
+        self.publish_testpoints(pub_states)
+
     def initialize_lmpc(self, N, n, d, track):
         x0_cls, u0_cls, x0_cl_globs = load_init_ss('./map/initial_ss.csv', 5)
         # self.get_logger().info("@=>Init: initial safety set lenghth: {}".format(len(x0_cl)))
@@ -126,7 +136,7 @@ class ControllerNode(Node):
         print("error", Error)
         lmpcParameters.A = A
         lmpcParameters.B = B
-        lmpcParameters.timeVarying     = True
+        lmpcParameters.timeVarying     = False
         self.lmpc = LMPC(numSS_Points, numSS_it, QterminalSlack, lmpcParameters, self.lmpcpredictiveModel)
         for i in range(4): # add trajectories for safe set
             self.lmpc.addTrajectory(x0_cls[i], u0_cls[i], x0_cl_globs[i])
@@ -165,6 +175,32 @@ class ControllerNode(Node):
         drive_msg.drive.speed = vel
         # drive_msg.drive.acceleration = accel
         self.drive_publisher.publish(drive_msg)
+    
+    def publish_testpoints(self, testpoints):
+        markerArray = MarkerArray()
+        for i, tp in enumerate(testpoints):
+            marker = Marker()
+            marker.header.frame_id = "map"
+            marker.header.stamp = self.get_clock().now().to_msg()
+            marker.id = i
+            marker.type = marker.SPHERE
+            marker.action = marker.ADD
+            marker.pose.position.x = tp[0]
+            marker.pose.position.y = tp[1]
+            marker.pose.position.z = 0.0
+            marker.pose.orientation.x = 0.0
+            marker.pose.orientation.y = 0.0
+            marker.pose.orientation.z = 0.0
+            marker.pose.orientation.w = 1.0
+            marker.scale.x = 0.21
+            marker.scale.y = 0.21
+            marker.scale.z = 0.21
+            marker.color.a = 1.0
+            marker.color.r = 0.0
+            marker.color.g = 0.0
+            marker.color.b = 1.0
+            markerArray.markers.append(marker)
+        self.testpoint_publisher.publish(markerArray)
 
 def normalize_vector(vec):
     norm = np.linalg.norm(vec)

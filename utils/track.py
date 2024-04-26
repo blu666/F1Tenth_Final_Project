@@ -310,7 +310,20 @@ class Track:
         dis[1:] = np.linalg.norm(xy[1:, :] - xy[:-1, :], axis=1) # (n-1)
         return np.cumsum(dis) #(n, )
         
-        
+    def track_to_global(self, e_y, e_yaw, s):
+        # line 557: track_to_global
+        dx_ds = self.x_eval_d(s)
+        dy_ds = self.y_eval_d(s)
+
+        proj = np.array([self.x_eval(s), self.y_eval(s)])
+        pos = proj + normalize_vector(np.array([-dy_ds, dx_ds])) * e_y
+        yaw = e_yaw + np.arctan2(dy_ds, dx_ds)
+        return np.array([pos[0], pos[1], yaw])
+    
+def normalize_vector(vec):
+    norm = np.linalg.norm(vec)
+    return vec / norm
+    
 if __name__ == "__main__":
     a, b = np.array([1, 1])
     b = np.array([1, -1])

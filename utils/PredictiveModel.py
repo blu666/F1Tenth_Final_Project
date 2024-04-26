@@ -171,7 +171,7 @@ class PredictiveModel():
 
     def LMPC_LocLinReg(self, Q, b, inputFeatures):
         # Solve QP
-        res_cons = qp(Q, b) # This is ordered as [A B C]
+        res_cons = qp(Q, b, kktsolver='ldl') # This is ordered as [A B C]
         # Unpack results
         result = np.squeeze(np.array(res_cons['x']))
         A = result[0:len(self.stateFeatures)]
