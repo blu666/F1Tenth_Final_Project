@@ -33,7 +33,7 @@ class RecordSS(Node):
         self.create_subscription(OccupancyGrid, '/map', self.map_callback, 10)
         self.goalpoint_publisher = self.create_publisher(Marker, '/pure_pursuit/goalpoint', 10)
         self.waypoints_publisher = self.create_publisher(MarkerArray, '/pure_pursuit/waypoints', 10)
-        self.track = Track("./map/levine/centerline.csv")
+        self.track = Track("./map/race3/centerline.csv", "./map/race3/race3_track.png")
         self.reset_startingline = True
         self.u = np.zeros(2, dtype=np.float32)
         # self.x = np.zeros(6, dtype=np.float32)
@@ -45,9 +45,9 @@ class RecordSS(Node):
         # self.vy = 0.0
         # self.prev_position = 0.0
         # self.prev_time = None
-        # self.X = 0.0
-        # self.Y = 0.0
-        # self.yaw = 0.0
+        # self.X = 0.0  
+        # self.Y = 0.0  
+        # self.yaw = 0.0    
         # print("init time", self.prev_time, self.prev_time.sec, self.prev_time.nanosec )
         # print(self.prev_time.to_msg(), self.prev_time.to_msg().sec, self.prev_time.to_msg().nanosec)
         self.map: OccupancyGrid = None
@@ -144,7 +144,7 @@ class RecordSS(Node):
         
         if self.reset_startingline:
             self.get_logger().info("Reset starting line")
-            self.track.reset_starting_point(pose_msg.pose.pose.position.x,
+            self.track.reset_starting_point_new(pose_msg.pose.pose.position.x,
                                             pose_msg.pose.pose.position.y,
                                             refine=True)
             self.waypoints = self.track.centerline_xy

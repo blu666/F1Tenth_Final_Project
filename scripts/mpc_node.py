@@ -114,8 +114,8 @@ class MPC(Node):
         self.refpoint_publisher = self.create_publisher(MarkerArray, '/pure_pursuit/refpoints', 10)
 
         # TODO: get waypoints here
-        self.waypoints = self.load_waypoints("./map/levine_mpc/levine_line_v_yaw.csv")
-        # self.publish_waypoints()
+        self.waypoints = self.load_waypoints("./map/mpc/race3_mpc.csv")
+        self.publish_waypoints()
 
         self.config = mpc_config()
         self.odelta_v = None

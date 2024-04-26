@@ -3,7 +3,7 @@ import numpy as np
 from dataclasses import dataclass
 from utils.spline import Spline
 import numba
-
+import cv2
 # @dataclass
 # class Waypoint:
 #     x: float
@@ -22,21 +22,25 @@ import numba
 #     return self.centerline_points[ind].reshape(n, -1), ind # 
 
 class Track:
-    def __init__(self, centerline_points: str, initialized: bool = False):
+    def __init__(self, centerline_points: str, map:str, initialized: bool = False):
         self.centerline_points = self.load_waypoints(centerline_points) # (N, 5) [x, y, left, right, theta]
         self.centerline_xy = self.centerline_points[:, :2]
         self.step = 0.05 # step size
         self.half_width = 0.6 # TODO: Original RLMPC code assumes uniform track width. Modify to allow for varying track width
+        self.k = 3
+        self.map = cv2.imread(map, cv2.IMREAD_GRAYSCALE)
+        self.resulution = 0.05
+        self.origin = np.array([0,0,0])
         if not initialized:
             self.x_spline: Spline = None
             self.y_spline: Spline = None
             self.length = 0.0
         else:
-            self.x_spline = Spline(self.centerline_points[:, 4], self.centerline_points[:, 0])
-            self.y_spline = Spline(self.centerline_points[:, 4], self.centerline_points[:, 1])
+            self.x_spline = Spline(self.centerline_points[:, 4], self.centerline_points[:, 0], k=self.k)
+            self.y_spline = Spline(self.centerline_points[:, 4], self.centerline_points[:, 1], k=self.k)
             self.length = self.centerline_points[-1, 4]
 
-    def reset_starting_point_new(self, x: float, y: float, refine: bool = True):
+    def reset_starting_point_new(self, x: float, y: float, refine: bool = True, dsamp=15):
         """
         The order of the waypoints should be rearranged, 
         so that the closest waypoint to the starting position is the first waypoint.
@@ -57,14 +61,15 @@ class Track:
         self.centerline_xy = self.centerline_points[:, :2]
         self.length = self.centerline_points[-1, 4]
         ## Fit spline y = f(s), x = f(s)
-        spline_s = np.append(self.centerline_points[::5, 4], self.length)
-        spline_x = np.append(self.centerline_points[::5, 0], self.centerline_points[0, 0])
-        spline_y = np.append(self.centerline_points[::5, 1], self.centerline_points[0, 1])
-        self.x_spline = Spline(spline_s, spline_x)
-        self.y_spline = Spline(spline_s, spline_y)
+        spline_s = np.append(self.centerline_points[::18, 4], self.length+0.05)
+        spline_x = np.append(self.centerline_points[::18, 0], self.centerline_points[0, 0])
+        spline_y = np.append(self.centerline_points[::18, 1], self.centerline_points[0, 1])
+        self.x_spline = Spline(spline_s, spline_x, k=self.k)
+        self.y_spline = Spline(spline_s, spline_y, k=self.k)
         if refine:
             self.refine_uniform_waypoint()
         np.savetxt("map/refined_centerline.csv", self.centerline_points, delimiter=",")
+        np.savetxt("map/refined_race3_centerline.csv", self.centerline_points[:, :-1], delimiter=",")
         return
 
     def reset_starting_point(self, x: float, y: float, refine: bool = True):
@@ -89,11 +94,11 @@ class Track:
         self.length = self.centerline_points[-1, 4]
         ## Fit spline y = f(s), x = f(s)
         
-        self.x_spline = Spline(self.centerline_points[:, 4], self.centerline_points[:, 0])
-        self.y_spline = Spline(self.centerline_points[:, 4], self.centerline_points[:, 1])
+        self.x_spline = Spline(self.centerline_points[:, 4], self.centerline_points[:, 0], k=self.k)
+        self.y_spline = Spline(self.centerline_points[:, 4], self.centerline_points[:, 1], k=self.k)
         if refine:
             self.refine_uniform_waypoint()
-        np.savetxt("map/refined_centerline.csv", self.centerline_points, delimiter=",")
+        np.savetxt("map/refined_race3_centerline.csv", self.centerline_points[:, :-1], delimiter=",")
         return
     
     def plot_spline(self):
@@ -208,11 +213,20 @@ class Track:
         # print(closest_points)
         return s
     
+    def frenet_to_global(self, s: float, ey: float):
+        x = self.x_eval(s)
+        y = self.y_eval(s)
+        x_d = self.x_eval_d(s)
+        y_d = self.y_eval_d(s)
+        
+        
+        return
+    
     def update_half_width(self, thetas: np.ndarray):
         """
         Update left right TODO
         """
-        widths = np.ones_like(thetas, dtype=float) * 0.7
+        widths = np.ones_like(thetas, dtype=float) * 1.2
         return widths
     
     def get_left_half_width(self, theta: float) -> float:

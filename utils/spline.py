@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.interpolate import CubicSpline
+from scipy.interpolate import CubicSpline, UnivariateSpline
 
 
 # # Band matrix solver
@@ -39,10 +39,13 @@ from scipy.interpolate import CubicSpline
 
 
 class Spline:
-    def __init__(self, s: np.ndarray, x: np.ndarray):
+    def __init__(self, s: np.ndarray, x: np.ndarray, k=3):
         self.s = s
         self.x = x
-        self.cs = CubicSpline(s, x)
+        if k == 3:
+            self.cs = CubicSpline(s, x)
+        else:
+            self.cs = UnivariateSpline(s, x, k=k)
         self.cs_d = self.cs.derivative(1)
         self.cs_dd = self.cs.derivative(2)
 
