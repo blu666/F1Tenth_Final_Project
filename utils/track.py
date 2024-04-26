@@ -197,9 +197,9 @@ class Track:
         x0, y0 = point[0], point[1]
         closest_points, ind = self.get_closest_waypoint(x0, y0, 2)
         if (ind[0] < N / 4 and ind[1] > 2 * N / 3):
-            closest_points[ind[0], 4] = self.length + closest_points[ind[0], 4]
+            closest_points[0, 4] = self.length + closest_points[0, 4]
         elif (ind[1] < N / 4 and ind[0] > 2 * N / 3):
-            closest_points[ind[1], 4] = self.length + closest_points[ind[1], 4]
+            closest_points[1, 4] = self.length + closest_points[1, 4]
         
         x1, y1, s1 = closest_points[0, [0, 1, 4]]
         x2, y2, s2 = closest_points[1, [0, 1, 4]]

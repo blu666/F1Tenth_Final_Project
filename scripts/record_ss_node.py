@@ -24,7 +24,7 @@ class RecordSS(Node):
     """
     def __init__(self):
         super().__init__('record_ss_node')
-        self.savepath = "./map/inital_ss.csv"
+        self.savepath = "./map/initial_ss.csv"
 
         ## Subs
         self.create_subscription(Odometry, '/ego_racecar/odom', self.pose_callback, 10)
