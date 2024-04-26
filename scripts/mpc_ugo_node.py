@@ -164,7 +164,7 @@ class MPC(Node):
 
     def pid_solve(self, x0):
         p_acc = 1.5
-        p_longitudinal_dist = 2.5
+        p_longitudinal_dist = -2.5
         p_yaw = -1.5
         self.uPred[0, 0] = p_longitudinal_dist * x0[5] + p_yaw * x0[3]
         self.uPred[0, 1] = p_acc * (self.vt - x0[0])
@@ -192,7 +192,7 @@ class MPC(Node):
             self.xpid = np.concatenate([self.xpid, self.x.reshape(1, -1)], axis=0)
             
             self.upid = np.concatenate([self.upid, self.uPred[0].reshape(1, -1)], axis=0)
-            print(self.xpid.shape, self.upid.shape)
+            # print(self.xpid.shape, self.upid.shape)
         # print(self.x, self.last_x)
 
 

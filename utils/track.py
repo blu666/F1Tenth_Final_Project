@@ -181,7 +181,7 @@ class Track:
         dis_abs = np.linalg.norm([x, y] - closest_points[0, :2])
         direction = np.sign(np.cross([x, y] - closest_points[0, :2], [x_d, y_d])) # determine the sign of ey
         ey = direction * dis_abs # TODO: TEST
-        return epsi, s, ey, closest_points[0, :2]
+        return epsi, s, -ey, closest_points[0, :2]
     
     def get_theta(self, point:np.ndarray) -> float:
         """
