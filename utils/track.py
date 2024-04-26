@@ -93,9 +93,8 @@ class Track:
         self.centerline_xy = self.centerline_points[:, :2]
         self.length = self.centerline_points[-1, 4]
         ## Fit spline y = f(s), x = f(s)
-        
-        self.x_spline = Spline(self.centerline_points[:, 4], self.centerline_points[:, 0], k=self.k)
-        self.y_spline = Spline(self.centerline_points[:, 4], self.centerline_points[:, 1], k=self.k)
+        self.x_spline = Spline(self.centerline_points[::5, 4], self.centerline_points[::5, 0])
+        self.y_spline = Spline(self.centerline_points[::5, 4], self.centerline_points[::5, 1])
         if refine:
             self.refine_uniform_waypoint()
         np.savetxt("map/refined_race3_centerline.csv", self.centerline_points[:, :-1], delimiter=",")
@@ -176,7 +175,8 @@ class Track:
         x_d = self.x_eval_d(s)
         y_d = self.y_eval_d(s)
         psi_des =  np.arctan2(y_d, x_d)
-        epsi = yaw - psi_des
+        # print("psi_des: ", psi_des, "yaw: ", yaw)
+        epsi = self.diff_angle(yaw, psi_des)
         # ey = self.get_ey([x, y], epsi)
         dis_abs = np.linalg.norm([x, y] - closest_points[0, :2])
         direction = np.sign(np.cross([x, y] - closest_points[0, :2], [x_d, y_d])) # determine the sign of ey
