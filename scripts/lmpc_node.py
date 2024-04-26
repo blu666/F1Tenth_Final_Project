@@ -118,7 +118,7 @@ class ControllerNode(Node):
         ss_points = self.lmpc.Succ_SS_PointSelectedTot
         pub_states = np.empty((ss_points.shape[1], 2))
         for i in range(ss_points.shape[1]):
-            x, y, yaw = self.Track.track_to_global(ss_points[5, i], ss_points[3, i], ss_points[4, i])
+            x, y, yaw = self.Track.track_to_global(-ss_points[5, i], ss_points[3, i], ss_points[4, i])
             pub_states[i, 0] = x
             pub_states[i, 1] = y
         # print(pub_states.shape, ss_points.shape)
