@@ -40,7 +40,7 @@ class Track:
             self.y_spline = Spline(self.centerline_points[:, 4], self.centerline_points[:, 1], k=self.k)
             self.length = self.centerline_points[-1, 4]
 
-    def reset_starting_point_new(self, x: float, y: float, refine: bool = True, dsamp=15):
+    def reset_starting_point_new(self, x: float, y: float, refine: bool = True, dsamp=25):
         """
         The order of the waypoints should be rearranged, 
         so that the closest waypoint to the starting position is the first waypoint.
@@ -50,6 +50,7 @@ class Track:
             hence need to +1 in size and add starting point to the end
         """
         ## Rearange waypoints
+        
         N = self.centerline_points.shape[0] # NOTE: (1)
         new_points = np.zeros((N, 5))
         _, starting_index = self.get_closest_waypoint(x, y)
@@ -61,15 +62,15 @@ class Track:
         self.centerline_xy = self.centerline_points[:, :2]
         self.length = self.centerline_points[-1, 4]
         ## Fit spline y = f(s), x = f(s)
-        spline_s = np.append(self.centerline_points[::18, 4], self.length+0.05)
-        spline_x = np.append(self.centerline_points[::18, 0], self.centerline_points[0, 0])
-        spline_y = np.append(self.centerline_points[::18, 1], self.centerline_points[0, 1])
+        spline_s = np.append(self.centerline_points[::dsamp, 4], self.length+0.05)
+        spline_x = np.append(self.centerline_points[::dsamp, 0], self.centerline_points[0, 0])
+        spline_y = np.append(self.centerline_points[::dsamp, 1], self.centerline_points[0, 1])
         self.x_spline = Spline(spline_s, spline_x, k=self.k)
         self.y_spline = Spline(spline_s, spline_y, k=self.k)
         if refine:
             self.refine_uniform_waypoint()
         np.savetxt("map/refined_centerline.csv", self.centerline_points, delimiter=",")
-        np.savetxt("map/refined_race3_centerline.csv", self.centerline_points[:, :-1], delimiter=",")
+        np.savetxt("map/race3_centerline.csv", self.centerline_points[:, :-1], delimiter=",")
         return
 
     def reset_starting_point(self, x: float, y: float, refine: bool = True):
@@ -223,7 +224,7 @@ class Track:
         dy_ds = self.y_eval_d(s)
 
         proj = np.array([self.x_eval(s), self.y_eval(s)])
-        pos = proj + normalize_vector(np.array([-dy_ds, dx_ds])) * -e_y
+        pos = proj + normalize_vector(np.array([-dy_ds, dx_ds])) * e_y
         yaw = e_yaw + np.arctan2(dy_ds, dx_ds) # e_yaw = yaw - yaw_des
         return np.array([pos[0], pos[1], yaw])
     
@@ -241,7 +242,7 @@ class Track:
             e_yaw -= 2*np.pi
         while e_yaw < -np.pi:
             e_yaw += 2*np.pi
-        return e_y, e_yaw, s
+        return -e_y, e_yaw, s
     
     def update_half_width(self, thetas: np.ndarray):
         """

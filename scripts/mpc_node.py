@@ -114,7 +114,7 @@ class MPC(Node):
         self.refpoint_publisher = self.create_publisher(MarkerArray, '/pure_pursuit/refpoints', 10)
 
         # TODO: get waypoints here
-        self.waypoints = self.load_waypoints("./map/mpc/race3_mpc.csv")
+        self.waypoints = self.load_waypoints("./map/race3/race3_raceline.csv")
         self.publish_waypoints()
 
         self.config = mpc_config()

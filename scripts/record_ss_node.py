@@ -33,7 +33,7 @@ class RecordSS(Node):
         self.create_subscription(OccupancyGrid, '/map', self.map_callback, 10)
         self.goalpoint_publisher = self.create_publisher(Marker, '/pure_pursuit/goalpoint', 10)
         self.waypoints_publisher = self.create_publisher(MarkerArray, '/pure_pursuit/waypoints', 10)
-        self.track = Track("./map/race3/centerline.csv", "./map/race3/race3_track.png")
+        self.track = Track("./map/race3/centerline_new.csv", "./map/race3/race3_track.png")
         self.reset_startingline = True
         self.u = np.zeros(2, dtype=np.float32)
         # self.x = np.zeros(6, dtype=np.float32)

@@ -164,7 +164,7 @@ class MPC(Node):
 
     def pid_solve(self, x0):
         p_acc = 1.5
-        p_longitudinal_dist = 0.9
+        p_longitudinal_dist = -0.9
         p_yaw = -0.5
         self.uPred[0, 0] = p_longitudinal_dist * x0[5] + p_yaw * x0[3]
         self.uPred[0, 1] = p_acc * (self.vt - x0[0])

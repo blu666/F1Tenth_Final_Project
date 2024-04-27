@@ -40,7 +40,7 @@ class ControllerNode(Node):
         self.Track = None
 
         #==== LMPC Params
-        self.N = 14                                    # Horizon length
+        self.N = 20                                    # Horizon length
         self.n = 6; self.d = 2                            # State and Input dimension
         self.dt = 1. / 20.
         vt = 0.8
@@ -65,6 +65,7 @@ class ControllerNode(Node):
         self.drive_publisher = self.create_publisher(AckermannDriveStamped, '/drive', 10)
         self.waypoints_publisher = self.create_publisher(MarkerArray, '/pure_pursuit/waypoints', 10)
         self.testpoint_publisher = self.create_publisher(MarkerArray, '/pure_pursuit/testpoints', 10)
+        self.selected_publisher = self.create_publisher(MarkerArray, '/pure_pursuit/selected', 10)
         self.create_timer(self.dt, self.lmpc_run) # RUN LMPC WITH FIXED RATE
         self.get_logger().info("@=>Init: LMPC Node Initialized")
 
@@ -90,11 +91,27 @@ class ControllerNode(Node):
         vx, vy = self.odom.twist.twist.linear.x, self.odom.twist.twist.linear.y + np.random.randn() * 1e-6
         wz = self.odom.twist.twist.angular.z
         epsi, s_curr, ey, _ = self.Track.get_states(X, Y, yaw)
+        
         self.xt = np.array([vx, vy, wz, epsi, s_curr, ey])
         self.xt_glob = np.array([vx, vy, wz, yaw, X, Y])
+        
+        
         self.lmpc.solve(self.xt)
+        
+        #==== Visualize ss point
+        ss_points = self.lmpc.Succ_SS_PointSelectedTot
+        pub_states = np.empty((ss_points.shape[1], 2))
+        for i in range(ss_points.shape[1]):
+            x, y, yaw = self.Track.track_to_global(ss_points[5, i], ss_points[3, i], ss_points[4, i])
+            pub_states[i, 0] = x
+            pub_states[i, 1] = y
+        # print(pub_states.shape, ss_points.shape)
+        self.publish_selected(pub_states)
+        
+        
         u = self.lmpc.get_control()
         self.lmpc.addPoint(self.xt, u) # at iteration j add data to SS^{j-1} 
+        self.get_logger().info("@=> states: xt {}".format(self.xt))
         #==== Check if the car has passed the starting line
         if s_curr - self.s_prev < -self.Track.length / 3.:
             print("@=>Lapping: Finished running lap {}, time {}".format(self.lap, self.time))
@@ -115,25 +132,32 @@ class ControllerNode(Node):
         self.s_prev = s_curr
         self.apply_control(u[0], u[1], vx)
 
-        ss_points = self.lmpc.Succ_SS_PointSelectedTot
-        pub_states = np.empty((ss_points.shape[1], 2))
-        for i in range(ss_points.shape[1]):
-            x, y, yaw = self.Track.track_to_global(-ss_points[5, i], ss_points[3, i], ss_points[4, i])
-            pub_states[i, 0] = x
-            pub_states[i, 1] = y
-        # print(pub_states.shape, ss_points.shape)
-        self.publish_testpoints(pub_states)
+        
+        # self.plot_ss()
 
-    def initialize_lmpc(self, N, n, d, track):
-        x0_cls, u0_cls, x0_cl_globs = load_init_ss('./map/initial_ss.csv', 5)
-        ss_points = x0_cls[0]
+    def plot_ss(self):
+        SS_list = self.lmpc.getCurrentSS() # list of (N, 6) numpy arrays
+        ss_points = np.concatenate(SS_list, axis=0)
+        # pub_states = ss_points[:, 4:6]
         pub_states = np.empty((ss_points.shape[0], 2))
         for i in range(ss_points.shape[0]):
             x, y, yaw = self.Track.track_to_global(ss_points[i, 5], ss_points[i, 3], ss_points[i, 4])
             pub_states[i, 0] = x
             pub_states[i, 1] = y
-        print(pub_states.shape, ss_points.shape)
         self.publish_testpoints(pub_states)
+        # # print(SS_combined.shape)
+        # return SS_combined.shape
+    
+    def initialize_lmpc(self, N, n, d, track):
+        x0_cls, u0_cls, x0_cl_globs = load_init_ss('./map/initial_ss.csv', 5)
+        # ss_points = x0_cls[0]
+        # pub_states = np.empty((ss_points.shape[0], 2))
+        # for i in range(ss_points.shape[0]):
+        #     x, y, yaw = self.Track.track_to_global(ss_points[i, 5], ss_points[i, 3], ss_points[i, 4])
+        #     pub_states[i, 0] = x
+        #     pub_states[i, 1] = y
+        # print(pub_states.shape, ss_points.shape)
+        # self.publish_testpoints(pub_states)
         # self.publish_testpoints(x0_cl_globs[0][:, 4:6])
         # self.get_logger().info("@=>Init: initial safety set lenghth: {}".format(len(x0_cl)))
         # mpcParam, ltvmpcParam = initMPCParams(n, d, N, vt)
@@ -145,7 +169,7 @@ class ControllerNode(Node):
         print("error", Error)
         lmpcParameters.A = A
         lmpcParameters.B = B
-        lmpcParameters.timeVarying     = False
+        lmpcParameters.timeVarying     = True
         self.lmpc = LMPC(numSS_Points, numSS_it, QterminalSlack, lmpcParameters, self.lmpcpredictiveModel)
         for i in range(0, 4): # add trajectories for safe set
             self.lmpc.addTrajectory(x0_cls[i], u0_cls[i], x0_cl_globs[i])
@@ -183,7 +207,7 @@ class ControllerNode(Node):
         # drive_msg.drive.steering_angle_velocity = 1.0
         drive_msg.drive.speed = vel
         # drive_msg.drive.acceleration = accel
-        # self.drive_publisher.publish(drive_msg)
+        self.drive_publisher.publish(drive_msg)
     
     def publish_testpoints(self, testpoints):
         markerArray = MarkerArray()
@@ -201,10 +225,10 @@ class ControllerNode(Node):
             marker.pose.orientation.y = 0.0
             marker.pose.orientation.z = 0.0
             marker.pose.orientation.w = 1.0
-            marker.scale.x = 0.21
-            marker.scale.y = 0.21
-            marker.scale.z = 0.21
-            marker.color.a = 1.0
+            marker.scale.x = 0.1
+            marker.scale.y = 0.1
+            marker.scale.z = 0.1
+            marker.color.a = 0.2
             marker.color.r = 0.0
             marker.color.g = 0.0
             marker.color.b = 1.0
@@ -235,7 +259,7 @@ class ControllerNode(Node):
             marker.color.g = 1.0
             marker.color.b = 0.0
             markerArray.markers.append(marker)
-        self.testpoint_publisher.publish(markerArray)
+        self.selected_publisher.publish(markerArray)
 
 
 def normalize_vector(vec):

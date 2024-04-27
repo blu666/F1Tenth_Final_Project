@@ -149,6 +149,7 @@ class MPC():
 
     def addTerminalComponents(self, x0):
         # TO DO: ....
+        print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
         self.H_FTOCP = sparse.csc_matrix(self.H)
         self.q_FTOCP = self.q
         self.F_FTOCP = sparse.csc_matrix(self.F)
@@ -330,8 +331,9 @@ class LMPC(MPC):
         self.SSStoredPredTraj    = []
         self.SSStoredPredTraj_it = []
 
-        self.zt = np.array([0.0, 0.0, 0.0, 0.0, 10.0, 0.0]) ##?
-
+        # self.zt = np.array([0.0, 0.0, 0.0, 0.0, 10.0, 0.0]) ##?
+        self.zt = np.array([0.00000000e+00, -4.00772350e-07,  0.00000000e+00, -3.70007720e-03,
+                                1.0,  3.00746595e-01])
         # Initialize the controller iteration
         self.it      = 0
 
@@ -447,6 +449,9 @@ class LMPC(MPC):
         self.it = self.it + 1
         self.timeStep = 0
 
+    def getCurrentSS(self):
+        return self.SS[self.it-self.numSS_it:self.it]
+    
     def computeCost(self, x, u):
         """compute roll-out cost
         Arguments:
@@ -485,17 +490,22 @@ class LMPC(MPC):
             u: current input
         """
         x = self.SS[it]
+        # print("zt: ", zt)
+        
         u = self.uSS[it]
         oneVec = np.ones((x.shape[0], 1))
         x0Vec = (np.dot(np.array([zt]).T, oneVec.T)).T
         diff = x[:, 4:] - x0Vec[:, 4:]
-        norm = la.norm(diff, 2, axis=1)
+        norm = la.norm(diff, 1, axis=1)
+        # print(x[0:10])
         MinNorm = np.argmin(norm)
-
+        # print("min norm", MinNorm)  
         if (MinNorm - numPoints/2 < 0):
+            # print("lower bound min")
             indexSSandQfun = list(range(x.shape[0] - (int(numPoints/2) - MinNorm + 1), x.shape[0])) + list(range(0, MinNorm + int(numPoints/2)))
             # print(len(indexSSandQfun), numPoints)
         elif (MinNorm + numPoints/2 > x.shape[0]):
+            # print("lower bound min")
             indexSSandQfun = list(range(-int(numPoints/2) + MinNorm, x.shape[0])) + list(range(0, int(numPoints/2) - (x.shape[0] - MinNorm - 1)))
             # print(indexSSandQfun)
         else:
