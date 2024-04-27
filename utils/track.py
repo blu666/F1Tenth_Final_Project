@@ -122,18 +122,18 @@ class Track:
         x = self.x_spline(s)
         y = self.y_spline(s)
         
-        x = np.append(x, x[0]) # close the loop
-        y = np.append(y, y[0]) # close the loop
+        # x = np.append(x, x[0]) # close the loop
+        # y = np.append(y, y[0]) # close the loop
         points = np.hstack([x[:, None], y[:, None]])
-        s_new = self.get_cum_distance(points) # (N)
-        self.length = s_new[-1]
+        # s_new = self.get_cum_distance(points) # (N)
+        # self.length = s_new[-1]
         
         left_right_distance = self.update_half_width(points) # TODO: UPDATE HALF DISTANCE ON S
         
-        new_points = np.hstack([points[:-1], left_right_distance[:-1], s_new[:-1, None]])
+        new_points = np.hstack([points[:], left_right_distance[:], s[:, None]])
         self.centerline_points = new_points
         self.centerline_xy = self.centerline_points[:, :2]
-        print("NEW LAP LENGTH: ", self.length, s_new[-2])
+        # print("NEW LAP LENGTH: ", self.length, s_new[-2])
 
     def load_waypoints(self, csv_path: str):
         self.waypoints = csv_path
@@ -205,6 +205,7 @@ class Track:
         d_2c = np.linalg.norm(np.array([xc, yc]) - np.array([x2, y2]))
         s = d_2c * s1 / (d_1c + d_2c) + d_1c * s2 / (d_1c + d_2c)
         # print(closest_points)
+        # print((self.x_eval(s1), self.y_eval(s1)), (x1, y1))
         return s
     
     def frenet_to_global(self, s: float, ey: float):
@@ -222,7 +223,7 @@ class Track:
         dy_ds = self.y_eval_d(s)
 
         proj = np.array([self.x_eval(s), self.y_eval(s)])
-        pos = proj + normalize_vector(np.array([-dy_ds, dx_ds])) * e_y
+        pos = proj + normalize_vector(np.array([-dy_ds, dx_ds])) * -e_y
         yaw = e_yaw + np.arctan2(dy_ds, dx_ds) # e_yaw = yaw - yaw_des
         return np.array([pos[0], pos[1], yaw])
     

@@ -102,7 +102,7 @@ class MPC(Node):
         wz = pose_msg.twist.twist.angular.z
         yaw = R.from_quat([pose_msg.pose.pose.orientation.x, pose_msg.pose.pose.orientation.y, pose_msg.pose.pose.orientation.z, pose_msg.pose.pose.orientation.w]).as_euler('zyx')[0]
         states = self.Track.get_states(pose_msg.pose.pose.position.x, pose_msg.pose.pose.position.y, yaw)
-        print("s", states[1])
+        # print("s", states[1])
         x[0] = vx_global # vx_global * np.cos(yaw) + vy_global * np.sin(yaw)
         x[1] = np.random.randn(1) * 1e-5 #-vx_global * np.sin(yaw) + vy_global * np.cos(yaw)
         x[2] = wz
@@ -164,8 +164,8 @@ class MPC(Node):
 
     def pid_solve(self, x0):
         p_acc = 1.5
-        p_longitudinal_dist = 2.5
-        p_yaw = -1.5
+        p_longitudinal_dist = 0.9
+        p_yaw = -0.5
         self.uPred[0, 0] = p_longitudinal_dist * x0[5] + p_yaw * x0[3]
         self.uPred[0, 1] = p_acc * (self.vt - x0[0])
 

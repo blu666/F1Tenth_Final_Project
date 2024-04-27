@@ -167,9 +167,15 @@ class RecordSS(Node):
         # ## Extract states from track
         # # epsi, s_curr, ey = self.track.get_states(X, Y, yaw)
         # epsi, s_curr, ey, closepoint = self.track.get_states(X, Y, yaw)
+        
+        # xc, yc, yawc = self.track.track_to_global(ey, epsi, s_curr)
+        # x_proj, y_proj = self.track.x_eval(s_curr), self.track.y_eval(s_curr)
         # self.publish_goalpoint(closepoint)
-        # self.get_logger().info("{}, {}, {}, {}, {}".format(X, Y, epsi, s_curr, ey))
-
+        # self.get_logger().info("e_y {} s {} e_yaw {}".format(ey, s_curr, epsi))
+        # self.get_logger().info("xy {},{} rxy {},{}, err:{}".format(X, Y, xc, yc, np.linalg.norm([X - xc, Y - yc])))
+        # self.get_logger().info("yaw {}, ryaw{} err:{}".format(yaw, yawc, np.abs(yaw - yawc)))
+        # self.get_logger().info("close {}, {}".format(closepoint, (x_proj, y_proj)))
+    
     def map_callback(self, map_msg: OccupancyGrid):
         self.get_logger().info("Map received")
         return

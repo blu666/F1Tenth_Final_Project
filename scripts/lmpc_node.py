@@ -115,21 +115,21 @@ class ControllerNode(Node):
         self.s_prev = s_curr
         self.apply_control(u[0], u[1], vx)
 
-        # ss_points = self.lmpc.Succ_SS_PointSelectedTot
-        # pub_states = np.empty((ss_points.shape[1], 2))
-        # for i in range(ss_points.shape[1]):
-        #     x, y, yaw = self.Track.track_to_global(-ss_points[5, i], ss_points[3, i], ss_points[4, i])
-        #     pub_states[i, 0] = x
-        #     pub_states[i, 1] = y
-        # # print(pub_states.shape, ss_points.shape)
-        # self.publish_testpoints(pub_states)
+        ss_points = self.lmpc.Succ_SS_PointSelectedTot
+        pub_states = np.empty((ss_points.shape[1], 2))
+        for i in range(ss_points.shape[1]):
+            x, y, yaw = self.Track.track_to_global(-ss_points[5, i], ss_points[3, i], ss_points[4, i])
+            pub_states[i, 0] = x
+            pub_states[i, 1] = y
+        # print(pub_states.shape, ss_points.shape)
+        self.publish_testpoints(pub_states)
 
     def initialize_lmpc(self, N, n, d, track):
         x0_cls, u0_cls, x0_cl_globs = load_init_ss('./map/initial_ss.csv', 5)
         ss_points = x0_cls[0]
         pub_states = np.empty((ss_points.shape[0], 2))
         for i in range(ss_points.shape[0]):
-            x, y, yaw = self.Track.track_to_global(-ss_points[i, 5], ss_points[i, 3], ss_points[i, 4])
+            x, y, yaw = self.Track.track_to_global(ss_points[i, 5], ss_points[i, 3], ss_points[i, 4])
             pub_states[i, 0] = x
             pub_states[i, 1] = y
         print(pub_states.shape, ss_points.shape)
@@ -210,6 +210,33 @@ class ControllerNode(Node):
             marker.color.b = 1.0
             markerArray.markers.append(marker)
         self.testpoint_publisher.publish(markerArray)
+    
+    def publish_selected(self, testpoints):
+        markerArray = MarkerArray()
+        for i, tp in enumerate(testpoints):
+            marker = Marker()
+            marker.header.frame_id = "map"
+            marker.header.stamp = self.get_clock().now().to_msg()
+            marker.id = i
+            marker.type = marker.SPHERE
+            marker.action = marker.ADD
+            marker.pose.position.x = tp[0]
+            marker.pose.position.y = tp[1]
+            marker.pose.position.z = 0.0
+            marker.pose.orientation.x = 0.0
+            marker.pose.orientation.y = 0.0
+            marker.pose.orientation.z = 0.0
+            marker.pose.orientation.w = 1.0
+            marker.scale.x = 0.21
+            marker.scale.y = 0.21
+            marker.scale.z = 0.21
+            marker.color.a = 1.0
+            marker.color.r = 0.0
+            marker.color.g = 1.0
+            marker.color.b = 0.0
+            markerArray.markers.append(marker)
+        self.testpoint_publisher.publish(markerArray)
+
 
 def normalize_vector(vec):
     norm = np.linalg.norm(vec)
