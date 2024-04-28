@@ -164,9 +164,12 @@ class MPC(Node):
 
     def pid_solve(self, x0):
         p_acc = 1.5
-        p_longitudinal_dist = 2.5
-        p_yaw = -1.5
-        self.uPred[0, 0] = p_longitudinal_dist * x0[5] + p_yaw * x0[3]
+        p_longitudinal_dist = 1.0
+        p_yaw = -0.5
+        d_y = 0.0000
+        d_yaw = 0.000
+        self.old_x = [x0[5], x0[3]]
+        self.uPred[0, 0] = p_longitudinal_dist * x0[5] + p_yaw * x0[3] + d_y * (x0[5] - self.old_x[0]) + d_yaw * (x0[3] - self.old_x[1])
         self.uPred[0, 1] = p_acc * (self.vt - x0[0])
 
     def apply_control(self, steer, accel, vx):

@@ -129,12 +129,12 @@ class ControllerNode(Node):
         ss_points = x0_cls[0]
         pub_states = np.empty((ss_points.shape[0], 2))
         for i in range(ss_points.shape[0]):
-            x, y, yaw = self.Track.track_to_global(-ss_points[i, 5], ss_points[i, 3], ss_points[i, 4])
+            x, y = self.Track.getGlobalPosition(ss_points[i, 4], -ss_points[i, 5])
             pub_states[i, 0] = x
             pub_states[i, 1] = y
         print(pub_states.shape, ss_points.shape)
         self.publish_testpoints(pub_states)
-        # self.publish_testpoints(x0_cl_globs[0][:, 4:6])
+        self.publish_testpoints(x0_cl_globs[0][:, 4:6])
         # self.get_logger().info("@=>Init: initial safety set lenghth: {}".format(len(x0_cl)))
         # mpcParam, ltvmpcParam = initMPCParams(n, d, N, vt)
         numSS_it, numSS_Points, _, _, QterminalSlack, lmpcParameters = initLMPCParams(track, N) # TODO: change from map to self.Track

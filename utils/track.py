@@ -1,357 +1,424 @@
-#!/usr/bin/env python3
 import numpy as np
-from dataclasses import dataclass
-from utils.spline import Spline
-import numba
-import cv2
-# @dataclass
-# class Waypoint:
-#     x: float
-#     y: float
-#     theta: float
-#     left: float
-#     right: float
-# @numba.jit
-# def get_closest_waypoint():
-#     dist = np.linalg.norm(self.centerline_xy - np.array([x, y]), axis=1)
-#     if n == 1:
-#         ind = np.argmin(dist)
-#     else:
-#         dist_sorted = np.argsort(dist)
-#         ind = dist_sorted[:np.min(n, len(dist_sorted))]
-#     return self.centerline_points[ind].reshape(n, -1), ind # 
+import numpy.linalg as la
+import matplotlib.pyplot as plt
+import pdb
 
-class Track:
-    def __init__(self, centerline_points: str, map:str, initialized: bool = False):
-        self.centerline_points = self.load_waypoints(centerline_points) # (N, 5) [x, y, left, right, theta]
-        self.centerline_xy = self.centerline_points[:, :2]
-        self.step = 0.05 # step size
-        self.half_width = 0.6 # TODO: Original RLMPC code assumes uniform track width. Modify to allow for varying track width
-        self.k = 3
-        self.map = cv2.imread(map, cv2.IMREAD_GRAYSCALE)
-        self.resulution = 0.05
-        self.origin = np.array([0,0,0])
-        if not initialized:
-            self.x_spline: Spline = None
-            self.y_spline: Spline = None
-            self.length = 0.0
-        else:
-            self.x_spline = Spline(self.centerline_points[:, 4], self.centerline_points[:, 0], k=self.k)
-            self.y_spline = Spline(self.centerline_points[:, 4], self.centerline_points[:, 1], k=self.k)
-            self.length = self.centerline_points[-1, 4]
+class Map():
+    """map object
+    Attributes:
+        getGlobalPosition: convert position from (s, ey) to (X,Y)
+    """
+    def __init__(self, halfWidth):
+        """Initialization
+        halfWidth: track halfWidth
+        Modify the vector spec to change the geometry of the track
+        """
+        # Goggle-shaped track
+        # self.slack = 0.15
+        # self.halfWidth = halfWidth
+        # spec = np.array([[60 * 0.03, 0],
+        #                  [80 * 0.03, -80 * 0.03 * 2 / np.pi],
+        #                  # Note s = 1 * np.pi / 2 and r = -1 ---> Angle spanned = np.pi / 2
+        #                  [20 * 0.03, 0],
+        #                  [80 * 0.03, -80 * 0.03 * 2 / np.pi],
+        #                  [40 * 0.03, +40 * 0.03 * 10 / np.pi],
+        #                  [60 * 0.03, -60 * 0.03 * 5 / np.pi],
+        #                  [40 * 0.03, +40 * 0.03 * 10 / np.pi],
+        #                  [80 * 0.03, -80 * 0.03 * 2 / np.pi],
+        #                  [20 * 0.03, 0],
+        #                  [80 * 0.03, -80 * 0.03 * 2 / np.pi]])
 
-    def reset_starting_point_new(self, x: float, y: float, refine: bool = True, dsamp=15):
-        """
-        The order of the waypoints should be rearranged, 
-        so that the closest waypoint to the starting position is the first waypoint.
-        
-        NOTE:
-        (1) if calling this function we assume the centerline_point initially is not a closed loop, 
-            hence need to +1 in size and add starting point to the end
-        """
-        ## Rearange waypoints
-        N = self.centerline_points.shape[0] # NOTE: (1)
-        new_points = np.zeros((N, 5))
-        _, starting_index = self.get_closest_waypoint(x, y)
-        new_points[:N, :4] = np.roll(self.centerline_points[:, :4], -starting_index, axis=0)
-        # new_points[N, :4] = new_points[0, :4] # CLOSE THE LOOP
-        ## Find s for each point
-        new_points[:, 4] = self.get_cum_distance(new_points[:, :2])
-        self.centerline_points = new_points
-        self.centerline_xy = self.centerline_points[:, :2]
-        self.length = self.centerline_points[-1, 4]
-        ## Fit spline y = f(s), x = f(s)
-        spline_s = np.append(self.centerline_points[::18, 4], self.length+0.05)
-        spline_x = np.append(self.centerline_points[::18, 0], self.centerline_points[0, 0])
-        spline_y = np.append(self.centerline_points[::18, 1], self.centerline_points[0, 1])
-        self.x_spline = Spline(spline_s, spline_x, k=self.k)
-        self.y_spline = Spline(spline_s, spline_y, k=self.k)
-        if refine:
-            self.refine_uniform_waypoint()
-        np.savetxt("map/refined_centerline.csv", self.centerline_points, delimiter=",")
-        np.savetxt("map/refined_race3_centerline.csv", self.centerline_points[:, :-1], delimiter=",")
-        return
+        # L-shaped track
+        self.halfWidth = halfWidth
+        self.slack = 0.45
+        lengthCurve = 4.5
+        # spec = np.array([[1.0, 0],
+        #                  [lengthCurve, lengthCurve / np.pi],
+        #                  # Note s = 1 * np.pi / 2 and r = -1 ---> Angle spanned = np.pi / 2
+        #                  [lengthCurve / 2, -lengthCurve / np.pi],
+        #                  [lengthCurve, lengthCurve / np.pi],
+        #                  [lengthCurve / np.pi * 2, 0],
+        #                  [lengthCurve / 2, lengthCurve / np.pi]])
 
-    def reset_starting_point(self, x: float, y: float, refine: bool = True):
-        """
-        The order of the waypoints should be rearranged, 
-        so that the closest waypoint to the starting position is the first waypoint.
-        
-        NOTE:
-        (1) if calling this function we assume the centerline_point initially is not a closed loop, 
-            hence need to +1 in size and add starting point to the end
-        """
-        ## Rearange waypoints
-        N = self.centerline_points.shape[0] # NOTE: (1)
-        new_points = np.zeros((N, 5))
-        _, starting_index = self.get_closest_waypoint(x, y)
-        new_points[:N, :4] = np.roll(self.centerline_points[:, :4], -starting_index, axis=0)
-        # new_points[N, :4] = new_points[0, :4] # CLOSE THE LOOP
-        ## Find s for each point
-        new_points[:, 4] = self.get_cum_distance(new_points[:, :2])
-        self.centerline_points = new_points
-        self.centerline_xy = self.centerline_points[:, :2]
-        self.length = self.centerline_points[-1, 4]
-        ## Fit spline y = f(s), x = f(s)
-        
-        self.x_spline = Spline(self.centerline_points[:, 4], self.centerline_points[:, 0], k=self.k)
-        self.y_spline = Spline(self.centerline_points[:, 4], self.centerline_points[:, 1], k=self.k)
-        if refine:
-            self.refine_uniform_waypoint()
-        np.savetxt("map/refined_race3_centerline.csv", self.centerline_points[:, :-1], delimiter=",")
-        return
-    
-    def plot_spline(self):
-        """
-        Plot the centerline spline
-        """
-        import matplotlib.pyplot as plt
-        s = np.linspace(0, self.length, 1000)
-        xs = self.x_spline(s)
-        ys = self.y_spline(s)
-        plt.plot(xs, ys)
-        plt.axis("equal")
-        plt.show()
-        return
+        #curve length = 2 * pi * radius / 4
+        spec = np.array([[4.8, 0],
+                         [0.5 * np.pi * 1.6, 1.6], # radius 1.5, 
+                         [6.4, 0],
+                         [np.pi * 1.35, 1.35], # or 1.55 if last point is (6.8, 8.0) in stead of (6.4, 8.0)
+                         [2.5, 0],
+                         [0.5 * np.pi * 1.5, -1.5],
+                         [2.8, 0],
+                         [np.pi * 2.0, 2.0]
+                        ])
+                        #  [lengthCurve, lengthCurve / np.pi],
+                        #  # Note s = 1 * np.pi / 2 and r = -1 ---> Angle spanned = np.pi / 2
+                        #  [lengthCurve / 2, -lengthCurve / np.pi],
+                        #  [lengthCurve, lengthCurve / np.pi],
+                        #  [lengthCurve / np.pi * 2, 0],
+                        #  [lengthCurve / 2, lengthCurve / np.pi]])
 
-    def refine_uniform_waypoint(self):
-        """
-        Sample new set of waypoints uniformly to step_size.
-        """
-        s = np.arange(0, self.length, self.step)
-        x = self.x_spline(s)
-        y = self.y_spline(s)
-        
-        x = np.append(x, x[0]) # close the loop
-        y = np.append(y, y[0]) # close the loop
-        points = np.hstack([x[:, None], y[:, None]])
-        s_new = self.get_cum_distance(points) # (N)
-        self.length = s_new[-1]
-        
-        left_right_distance = self.update_half_width(points) # TODO: UPDATE HALF DISTANCE ON S
-        
-        new_points = np.hstack([points[:-1], left_right_distance[:-1], s_new[:-1, None]])
-        self.centerline_points = new_points
-        self.centerline_xy = self.centerline_points[:, :2]
-        print("NEW LAP LENGTH: ", self.length, s_new[-2])
 
-    def load_waypoints(self, csv_path: str):
-        self.waypoints = csv_path
-        with open(csv_path, "r") as f:
-            waypoint = np.loadtxt(f, delimiter=",") # [[x, y, left, right], ...]
-        return waypoint
+        # spec = np.array([[1.0, 0],
+        #                  [4.5, -4.5 / np.pi],
+        #                  # Note s = 1 * np.pi / 2 and r = -1 ---> Angle spanned = np.pi / 2
+        #                  [2.0, 0],
+        #                  [4.5, -4.5 / np.pi],
+        #                  [1.0, 0]])
 
-    def get_closest_waypoint(self, x: float, y: float, n: int = 1):
-        """
-        Find Closest n waypoints to the given x, y position
-        
-        Return: (n, 5) [[x, y, theta, left, right], ...], index
-        """
-        dist = np.linalg.norm(self.centerline_xy - np.array([x, y]), axis=1)
-        # print(dist.shape)
-        if n == 1:
-            ind = np.argmin(dist)
-        else:
-            dist_sorted = np.argsort(dist)
-            # print(n ,len(dist_sorted))
-            ind = dist_sorted[:min(n, len(dist_sorted))]
-            # print(ind)
-        return self.centerline_points[ind].reshape(n, -1).copy(), ind # 
+        # Now given the above segments we compute the (x, y) points of the track and the angle of the tangent vector (psi) at
+        # these points. For each segment we compute the (x, y, psi) coordinate at the last point of the segment. Furthermore,
+        # we compute also the cumulative s at the starting point of the segment at signed curvature
+        # PointAndTangent = [x, y, psi, cumulative s, segment length, signed curvature]
+        PointAndTangent = np.zeros((spec.shape[0] + 1, 6))
+        for i in range(0, spec.shape[0]):
+            if spec[i, 1] == 0.0:              # If the current segment is a straight line
+                l = spec[i, 0]                 # Length of the segments
+                if i == 0:
+                    ang = 0                          # Angle of the tangent vector at the starting point of the segment
+                    x = 0 + l * np.cos(ang)          # x coordinate of the last point of the segment
+                    y = 0 + l * np.sin(ang)          # y coordinate of the last point of the segment
+                else:
+                    ang = PointAndTangent[i - 1, 2]                 # Angle of the tangent vector at the starting point of the segment
+                    x = PointAndTangent[i-1, 0] + l * np.cos(ang)  # x coordinate of the last point of the segment
+                    y = PointAndTangent[i-1, 1] + l * np.sin(ang)  # y coordinate of the last point of the segment
+                psi = ang  # Angle of the tangent vector at the last point of the segment
 
-    # def get_theta(self, x: float, y: float) -> float:
-    #     """
-    #     Given a position, estimate progress on track
-    #     """
-    #     closest_points, _ = self.find_closest_waypoint(x, y)
-    #     # print(closest_points)
-    #     return closest_points[0, 4]
-    def get_states(self, x:float, y:float, yaw:float):
-        """
-        Get required states: [epsi, s, ey] based on xy
-        """
-        closest_points, ind = self.get_closest_waypoint(x, y, 2)
-        # print("@=> Closest points: ", ind)
-        s = self.get_theta(np.array([x, y]))
-        e_y, e_yaw, s = self.global_to_track(x, y, yaw, s)
-        ## Find yaw from centerline
-        
-        return e_yaw, s, e_y, closest_points[0, :2]
-    
-    def get_theta(self, point:np.ndarray) -> float:
-        """
-        Given a position, estimate progress s on track
-        
-        Use 2 closest waypoints to estimate theta
-        
-        Input:  [x, y]
-        Return: s
-        """
-        # point = np.array(point)
-        N = self.centerline_points.shape[0]
-        x0, y0 = point[0], point[1]
-        closest_points, ind = self.get_closest_waypoint(x0, y0, 2)
-        if (ind[0] < N / 4 and ind[1] > 2 * N / 3):
-            closest_points[0, 4] = self.length + closest_points[0, 4]
-        elif (ind[1] < N / 4 and ind[0] > 2 * N / 3):
-            closest_points[1, 4] = self.length + closest_points[1, 4]
-        
-        x1, y1, s1 = closest_points[0, [0, 1, 4]]
-        x2, y2, s2 = closest_points[1, [0, 1, 4]]
 
-        A = np.array([[x2 - x1, y2 - y1], [y2 - y1, -(x2 - x1)]])
-        b = np.array([(x2 - x1) * x0 + (y2 - y1) * y0, (x2 - x1) * y1 - (y2 - y1) * x1])
-        xc, yc = np.linalg.inv(A).dot(b)
-        d_1c = np.linalg.norm(np.array([xc, yc]) - np.array([x1, y1]))
-        d_2c = np.linalg.norm(np.array([xc, yc]) - np.array([x2, y2]))
-        s = d_2c * s1 / (d_1c + d_2c) + d_1c * s2 / (d_1c + d_2c)
-        # print(closest_points)
-        return s
-    
-    def frenet_to_global(self, s: float, ey: float):
-        x = self.x_eval(s)
-        y = self.y_eval(s)
-        x_d = self.x_eval_d(s)
-        y_d = self.y_eval_d(s)
-        
-        
-        return
-    
-    def track_to_global(self, e_y, e_yaw, s):
-        # line 557: track_to_global
-        dx_ds = self.x_eval_d(s)
-        dy_ds = self.y_eval_d(s)
+                if i == 0:
+                    NewLine = np.array([x, y, psi, PointAndTangent[i, 3], l, 0])
+                else:
+                    NewLine = np.array([x, y, psi, PointAndTangent[i-1, 3] + PointAndTangent[i-1, 4], l, 0])
 
-        proj = np.array([self.x_eval(s), self.y_eval(s)])
-        pos = proj + normalize_vector(np.array([-dy_ds, dx_ds])) * e_y
-        yaw = e_yaw + np.arctan2(dy_ds, dx_ds) # e_yaw = yaw - yaw_des
-        return np.array([pos[0], pos[1], yaw])
-    
-    def global_to_track(self, x, y, yaw, s):
-        # line 543: global_to_track
-        x_proj = self.x_eval(s)
-        y_proj = self.y_eval(s)
-        e_y = np.sqrt((x - x_proj)**2 + (y - y_proj)**2)
-        dx_ds = self.x_eval_d(s)
-        dy_ds = self.y_eval_d(s)
-        if dx_ds * (y - y_proj) - dy_ds * (x - x_proj) > 0:
-            e_y = -e_y
-        e_yaw = yaw - np.arctan2(dy_ds, dx_ds)
-        while e_yaw > np.pi:
-            e_yaw -= 2*np.pi
-        while e_yaw < -np.pi:
-            e_yaw += 2*np.pi
-        return e_y, e_yaw, s
-    
-    def update_half_width(self, thetas: np.ndarray):
-        """
-        Update left right TODO
-        """
-        widths = np.ones_like(thetas, dtype=float) * 1.2
-        return widths
-    
-    def get_left_half_width(self, theta: float) -> float:
-        """
-        TODO: Update left half width
-        """
-        idx = max(0, min(len(self.centerline_points) - 1, int(np.floor(theta / self.step))))
-        return self.centerline_points[idx, 2]
-    
-    def get_right_half_width(self, theta: float) -> float:
-        idx = max(0, min(len(self.centerline_points) - 1, int(np.floor(theta / self.step))))
-        return self.centerline_points[idx, 3]
-    
-    def set_half_width(self, theta: float, left: float, right: float):
-        idx = max(0, min(len(self.centerline_points) - 1, int(np.floor(theta / self.step))))
-        self.centerline_points[idx, 2] = left
-        self.centerline_points[idx, 3] = right
-
-    def get_centerline_points_curvature(self, theta: float) -> float:
-        dx_dtheta = self.x_eval_d(theta)
-        dy_dtheta = self.y_eval_d(theta)
-        dx_ddtheta = self.x_eval_dd(theta)
-        dy_ddtheta = self.y_eval_dd(theta)
-        return (dx_dtheta * dy_ddtheta - dy_dtheta * dx_ddtheta) / (dx_dtheta**2 + dy_dtheta**2)**1.5
-
-    def get_centerline_points_radius(self, theta: float) -> float:
-        return 1.0 / self.get_centerline_points_curvature(theta)
-    
-    def wrap_theta(self, theta: float) -> float:
-        while (theta > self.length):
-            theta -= self.length
-        while (theta < 0):
-            theta += self.length
-        return theta
-    
-    def wrap_angle(self, angle):
-        """
-        Wrap angle to [-pi, pi]
-        """
-        while angle > np.pi:
-            angle -= 2 * np.pi
-        while angle < -np.pi:
-            angle += 2 * np.pi
-        return angle
-    
-    def diff_angle(self, angle1: float, angle2: float) -> float:
-        """
-        Compute difference between angle1 and angle 2 (angle1 - angle2)
-        """
-        diff = self.wrap_angle(angle1) - self.wrap_angle(angle2)
-        while abs(diff) > np.pi:
-            if diff > 0:
-                diff = diff - 2 * np.pi
+                PointAndTangent[i, :] = NewLine  # Write the new info
             else:
-                diff = diff + 2 * np.pi
-        return diff
+                l = spec[i, 0]                 # Length of the segment
+                r = spec[i, 1]                 # Radius of curvature
 
-    ## Spline evaluation
-    def x_eval(self, theta: float) -> float:
-        theta = self.wrap_theta(theta)
-        return self.x_spline(theta)
-    
-    def y_eval(self, theta: float) -> float:
-        theta = self.wrap_theta(theta)
-        return self.y_spline(theta)
-    
-    def x_eval_d(self, theta: float) -> float:
-        theta = self.wrap_theta(theta)
-        return self.x_spline.eval_d(theta)
-    
-    def y_eval_d(self, theta: float) -> float:
-        theta = self.wrap_theta(theta)
-        return self.y_spline.eval_d(theta)
-    
-    def x_eval_dd(self, theta: float) -> float:
-        theta = self.wrap_theta(theta)
-        return self.x_spline.eval_dd(theta)
-    
-    def y_eval_dd(self, theta: float) -> float:
-        theta = self.wrap_theta(theta)
-        return self.y_spline.eval_dd(theta)
-    
-    def get_phi(self, theta: float) -> float:
-        theta = self.wrap_theta(theta)
-        dx_dtheta = self.x_eval_d(theta)
-        dy_dtheta = self.y_eval_d(theta)
-        return np.arctan2(dy_dtheta, dx_dtheta)
-    
-    def get_cum_distance(self, xy:np.ndarray):
+
+                if r >= 0:
+                    direction = 1
+                else:
+                    direction = -1
+
+                if i == 0:
+                    ang = 0                                                      # Angle of the tangent vector at the
+                                                                                 # starting point of the segment
+                    CenterX = 0 \
+                              + np.abs(r) * np.cos(ang + direction * np.pi / 2)  # x coordinate center of circle
+                    CenterY = 0 \
+                              + np.abs(r) * np.sin(ang + direction * np.pi / 2)  # y coordinate center of circle
+                else:
+                    ang = PointAndTangent[i - 1, 2]                              # Angle of the tangent vector at the
+                                                                                 # starting point of the segment
+                    CenterX = PointAndTangent[i-1, 0] \
+                              + np.abs(r) * np.cos(ang + direction * np.pi / 2)  # x coordinate center of circle
+                    CenterY = PointAndTangent[i-1, 1] \
+                              + np.abs(r) * np.sin(ang + direction * np.pi / 2)  # y coordinate center of circle
+
+                spanAng = l / np.abs(r)  # Angle spanned by the circle
+                psi = wrap(ang + spanAng * np.sign(r))  # Angle of the tangent vector at the last point of the segment
+
+                angleNormal = wrap((direction * np.pi / 2 + ang))
+                angle = -(np.pi - np.abs(angleNormal)) * (sign(angleNormal))
+                x = CenterX + np.abs(r) * np.cos(
+                    angle + direction * spanAng)  # x coordinate of the last point of the segment
+                y = CenterY + np.abs(r) * np.sin(
+                    angle + direction * spanAng)  # y coordinate of the last point of the segment
+
+                if i == 0:
+                    NewLine = np.array([x, y, psi, PointAndTangent[i, 3], l, 1 / r])
+                else:
+                    NewLine = np.array([x, y, psi, PointAndTangent[i-1, 3] + PointAndTangent[i-1, 4], l, 1 / r])
+
+                PointAndTangent[i, :] = NewLine  # Write the new info
+            # plt.plot(x, y, 'or')
+
+
+        xs = PointAndTangent[-2, 0]
+        ys = PointAndTangent[-2, 1]
+        xf = 0
+        yf = 0
+        psif = 0
+
+        # plt.plot(xf, yf, 'or')
+        # plt.show()
+        l = np.sqrt((xf - xs) ** 2 + (yf - ys) ** 2)
+
+        NewLine = np.array([xf, yf, psif, PointAndTangent[-2, 3] + PointAndTangent[-2, 4], l, 0])
+        PointAndTangent[-1, :] = NewLine
+
+        self.PointAndTangent = PointAndTangent
+        self.TrackLength = PointAndTangent[-1, 3] + PointAndTangent[-1, 4]
+
+    def getGlobalPosition(self, s, ey):
+        """coordinate transformation from curvilinear reference frame (e, ey) to inertial reference frame (X, Y)
+        (s, ey): position in the curvilinear reference frame
         """
-        Get the cumulative distance of the track at a given xy of shape (N,)
-        For computing s
+
+        # wrap s along the track
+        while (s > self.TrackLength):
+            s = s - self.TrackLength
+
+        # Compute the segment in which system is evolving
+        PointAndTangent = self.PointAndTangent
+
+        index = np.all([[s >= PointAndTangent[:, 3]], [s < PointAndTangent[:, 3] + PointAndTangent[:, 4]]], axis=0)
+        i = int(np.where(np.squeeze(index))[0])
+
+        if PointAndTangent[i, 5] == 0.0:  # If segment is a straight line
+            # Extract the first final and initial point of the segment
+            xf = PointAndTangent[i, 0]
+            yf = PointAndTangent[i, 1]
+            xs = PointAndTangent[i - 1, 0]
+            ys = PointAndTangent[i - 1, 1]
+            psi = PointAndTangent[i, 2]
+
+            # Compute the segment length
+            deltaL = PointAndTangent[i, 4]
+            reltaL = s - PointAndTangent[i, 3]
+
+            # Do the linear combination
+            x = (1 - reltaL / deltaL) * xs + reltaL / deltaL * xf + ey * np.cos(psi + np.pi / 2)
+            y = (1 - reltaL / deltaL) * ys + reltaL / deltaL * yf + ey * np.sin(psi + np.pi / 2)
+        else:
+            r = 1 / PointAndTangent[i, 5]  # Extract curvature
+            ang = PointAndTangent[i - 1, 2]  # Extract angle of the tangent at the initial point (i-1)
+            # Compute the center of the arc
+            if r >= 0:
+                direction = 1
+            else:
+                direction = -1
+
+            CenterX = PointAndTangent[i - 1, 0] \
+                      + np.abs(r) * np.cos(ang + direction * np.pi / 2)  # x coordinate center of circle
+            CenterY = PointAndTangent[i - 1, 1] \
+                      + np.abs(r) * np.sin(ang + direction * np.pi / 2)  # y coordinate center of circle
+
+            spanAng = (s - PointAndTangent[i, 3]) / (np.pi * np.abs(r)) * np.pi
+
+            angleNormal = wrap((direction * np.pi / 2 + ang))
+            angle = -(np.pi - np.abs(angleNormal)) * (sign(angleNormal))
+
+            x = CenterX + (np.abs(r) - direction * ey) * np.cos(
+                angle + direction * spanAng)  # x coordinate of the last point of the segment
+            y = CenterY + (np.abs(r) - direction * ey) * np.sin(
+                angle + direction * spanAng)  # y coordinate of the last point of the segment
+
+        return x, y
+
+    def getLocalPosition(self, x, y, psi):
+        """coordinate transformation from inertial reference frame (X, Y) to curvilinear reference frame (s, ey)
+        (X, Y): position in the inertial reference frame
         """
-        dis = np.zeros(xy.shape[0])
-        dis[1:] = np.linalg.norm(xy[1:, :] - xy[:-1, :], axis=1) # (n-1)
-        return np.cumsum(dis) #(n, )
+        PointAndTangent = self.PointAndTangent
+        CompletedFlag = 0
 
 
-def normalize_vector(vec):
-    norm = np.linalg.norm(vec)
-    return vec / norm
-    
+
+        for i in range(0, PointAndTangent.shape[0]):
+            if CompletedFlag == 1:
+                break
+
+            if PointAndTangent[i, 5] == 0.0:  # If segment is a straight line
+                # Extract the first final and initial point of the segment
+                xf = PointAndTangent[i, 0]
+                yf = PointAndTangent[i, 1]
+                xs = PointAndTangent[i - 1, 0]
+                ys = PointAndTangent[i - 1, 1]
+
+                psi_unwrap = np.unwrap([PointAndTangent[i - 1, 2], psi])[1]
+                epsi = psi_unwrap - PointAndTangent[i - 1, 2]
+                # Check if on the segment using angles
+                if (la.norm(np.array([xs, ys]) - np.array([x, y]))) == 0:
+                    s  = PointAndTangent[i, 3]
+                    ey = 0
+                    CompletedFlag = 1
+
+                elif (la.norm(np.array([xf, yf]) - np.array([x, y]))) == 0:
+                    s = PointAndTangent[i, 3] + PointAndTangent[i, 4]
+                    ey = 0
+                    CompletedFlag = 1
+                else:
+                    if np.abs(computeAngle( [x,y] , [xs, ys], [xf, yf])) <= np.pi/2 and np.abs(computeAngle( [x,y] , [xf, yf], [xs, ys])) <= np.pi/2:
+                        v1 = np.array([x,y]) - np.array([xs, ys])
+                        angle = computeAngle( [xf,yf] , [xs, ys], [x, y])
+                        s_local = la.norm(v1) * np.cos(angle)
+                        s       = s_local + PointAndTangent[i, 3]
+                        ey      = la.norm(v1) * np.sin(angle)
+
+                        if np.abs(ey)<= self.halfWidth + self.slack:
+                            CompletedFlag = 1
+
+            else:
+                xf = PointAndTangent[i, 0]
+                yf = PointAndTangent[i, 1]
+                xs = PointAndTangent[i - 1, 0]
+                ys = PointAndTangent[i - 1, 1]
+
+                r = 1 / PointAndTangent[i, 5]  # Extract curvature
+                if r >= 0:
+                    direction = 1
+                else:
+                    direction = -1
+
+                ang = PointAndTangent[i - 1, 2]  # Extract angle of the tangent at the initial point (i-1)
+
+                # Compute the center of the arc
+                CenterX = xs + np.abs(r) * np.cos(ang + direction * np.pi / 2)  # x coordinate center of circle
+                CenterY = ys + np.abs(r) * np.sin(ang + direction * np.pi / 2)  # y coordinate center of circle
+
+                # Check if on the segment using angles
+                if (la.norm(np.array([xs, ys]) - np.array([x, y]))) == 0:
+                    ey = 0
+                    psi_unwrap = np.unwrap([ang, psi])[1]
+                    epsi = psi_unwrap - ang
+                    s = PointAndTangent[i, 3]
+                    CompletedFlag = 1
+                elif (la.norm(np.array([xf, yf]) - np.array([x, y]))) == 0:
+                    s = PointAndTangent[i, 3] + PointAndTangent[i, 4]
+                    ey = 0
+                    psi_unwrap = np.unwrap([PointAndTangent[i, 2], psi])[1]
+                    epsi = psi_unwrap - PointAndTangent[i, 2]
+                    CompletedFlag = 1
+                else:
+                    arc1 = PointAndTangent[i, 4] * PointAndTangent[i, 5]
+                    arc2 = computeAngle([xs, ys], [CenterX, CenterY], [x, y])
+                    if np.sign(arc1) == np.sign(arc2) and np.abs(arc1) >= np.abs(arc2):
+                        v = np.array([x, y]) - np.array([CenterX, CenterY])
+                        s_local = np.abs(arc2)*np.abs(r)
+                        s    = s_local + PointAndTangent[i, 3]
+                        ey   = -np.sign(direction) * (la.norm(v) - np.abs(r))
+                        psi_unwrap = np.unwrap([ang + arc2, psi])[1]
+                        epsi = psi_unwrap - (ang + arc2)
+
+                        if np.abs(ey) <= self.halfWidth + self.slack:
+                            CompletedFlag = 1
+
+        if epsi>1.0:
+            pdb.set_trace()
+
+        if CompletedFlag == 0:
+            s    = 10000
+            ey   = 10000
+            epsi = 10000
+
+            print("Error!! POINT OUT OF THE TRACK!!!! <==================")
+            pdb.set_trace()
+
+        return s, ey, epsi, CompletedFlag
+
+    def curvature(self, s):
+        """curvature computation
+        s: curvilinear abscissa at which the curvature has to be evaluated
+        PointAndTangent: points and tangent vectors defining the map (these quantities are initialized in the map object)
+        """
+        TrackLength = self.PointAndTangent[-1,3]+self.PointAndTangent[-1,4]
+
+        # In case on a lap after the first one
+        while (s > TrackLength):
+            s = s - TrackLength
+
+        # Given s \in [0, TrackLength] compute the curvature
+        # Compute the segment in which system is evolving
+        index = np.all([[s >= self.PointAndTangent[:, 3]], [s < self.PointAndTangent[:, 3] + self.PointAndTangent[:, 4]]], axis=0)
+
+        # i = int(np.where(np.squeeze(index))[0])
+        i = np.where(np.squeeze(index))[0].astype(int)
+        curvature = self.PointAndTangent[i, 5]
+
+        return curvature
+
+    def getAngle(self, s, epsi):
+        """TO DO
+        """
+        TrackLength = self.PointAndTangent[-1,3]+self.PointAndTangent[-1,4]
+
+        # In case on a lap after the first one
+        while (s > TrackLength):
+            s = s - TrackLength
+
+        # Given s \in [0, TrackLength] compute the curvature
+        # Compute the segment in which system is evolving
+        index = np.all([[s >= self.PointAndTangent[:, 3]], [s < self.PointAndTangent[:, 3] + self.PointAndTangent[:, 4]]], axis=0)
+
+        i = int(np.where(np.squeeze(index))[0])
+
+        if i > 0:
+            ang = self.PointAndTangent[i - 1, 2]
+        else:
+            ang = 0
+
+        if self.PointAndTangent[i, 5] == 0:
+            r= 0
+        else:
+            r = 1 / self.PointAndTangent[i, 5]  # Radius of curvature
+
+        if r == 0:
+            # On a straight part of the circuit
+            angle_at_s = ang + epsi
+        else:
+            # On a curve
+            cumulative_s = self.PointAndTangent[i, 3]
+            relative_s = s - cumulative_s
+            spanAng = relative_s / np.abs(r)  # Angle spanned by the circle
+            psi = wrap(ang + spanAng * np.sign(r))  # Angle of the tangent vector at the last point of the segment
+            # pdb.set_trace()
+            angle_at_s = psi + epsi
+
+        return angle_at_s
+
+# ======================================================================================================================
+# ======================================================================================================================
+# ====================================== Internal utilities functions ==================================================
+# ======================================================================================================================
+# ======================================================================================================================
+def computeAngle(point1, origin, point2):
+    # The orientation of this angle matches that of the coordinate system. Tha is why a minus sign is needed
+    v1 = np.array(point1) - np.array(origin)
+    v2 = np.array(point2) - np.array(origin)
+
+    dot = v1[0] * v2[0] + v1[1] * v2[1]  # dot product between [x1, y1] and [x2, y2]
+    det = v1[0] * v2[1] - v1[1] * v2[0]  # determinant
+    angle = np.arctan2(det, dot)  # atan2(y, x) or atan2(sin, cos)
+
+    return angle # np.arctan2(sinang, cosang)
+
+def wrap(angle):
+    if angle < -np.pi:
+        w_angle = 2 * np.pi + angle
+    elif angle > np.pi:
+        w_angle = angle - 2 * np.pi
+    else:
+        w_angle = angle
+
+    return w_angle
+
+def sign(a):
+    if a >= 0:
+        res = 1
+    else:
+        res = -1
+
+    return res
+
+def plot_track(map):
+    Points = int(np.floor(10 * (map.PointAndTangent[-1, 3] + map.PointAndTangent[-1, 4])))
+    Points1 = np.zeros((Points, 2))
+    Points2 = np.zeros((Points, 2))
+    Points0 = np.zeros((Points, 2))
+    for i in range(0, int(Points)):
+        Points1[i, :] = map.getGlobalPosition(i * 0.1, map.halfWidth)
+        Points2[i, :] = map.getGlobalPosition(i * 0.1, -map.halfWidth)
+        Points0[i, :] = map.getGlobalPosition(i * 0.1, 0)
+
+    plt.figure()
+    plt.plot(map.PointAndTangent[:, 0], map.PointAndTangent[:, 1], 'o')
+    plt.plot(Points0[:, 0], Points0[:, 1], '--')
+    plt.plot(Points1[:, 0], Points1[:, 1], '-b')
+    plt.plot(Points2[:, 0], Points2[:, 1], '-b')
+    plt.axis('equal')
+
 if __name__ == "__main__":
-    a, b = np.array([1, 1])
-    b = np.array([1, -1])
-    print(np.cross(a, b))
-    print(a)
-    pass
+    map = Map(1.0)
+    plot_track(map)
+    plt.show()
