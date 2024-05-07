@@ -165,13 +165,15 @@ class ControllerNode(Node):
         self.lmpcpredictiveModel = PredictiveModel(n, d, track, 4)
         for i in range(0, 4): # add trajectories used for model learning
             self.lmpcpredictiveModel.addTrajectory(x0_cls[i],u0_cls[i])
-        A, B, Error = Regression(x0_cls[0], u0_cls[0], lamb=1e-6)
+        x0_cls_all = np.concatenate(x0_cls, axis=0)
+        u0_cls_all = np.concatenate(u0_cls, axis=0)
+        A, B, Error = Regression(x0_cls_all, u0_cls_all, lamb=1e-6)
         print("error", Error)
         lmpcParameters.A = A
         lmpcParameters.B = B
         lmpcParameters.timeVarying     = True
         self.lmpc = LMPC(numSS_Points, numSS_it, QterminalSlack, lmpcParameters, self.lmpcpredictiveModel)
-        for i in range(0, 4): # add trajectories for safe set
+        for i in range(0, 5): # add trajectories for safe set
             self.lmpc.addTrajectory(x0_cls[i], u0_cls[i], x0_cl_globs[i])
         return
 

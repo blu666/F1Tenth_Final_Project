@@ -56,7 +56,7 @@ class MPC(Node):
         # self.init_flag = 0
         self.pose_msg = None
         self.x = np.zeros(6)
-        self.vt = 0.5
+        self.vt = 0.8
         self.dt = 0.1
         self.first_run = True
         self.first_mpc_run = True
@@ -167,7 +167,7 @@ class MPC(Node):
         p_longitudinal_dist = -0.9
         p_yaw = -0.5
         self.uPred[0, 0] = p_longitudinal_dist * x0[5] + p_yaw * x0[3]
-        self.uPred[0, 1] = p_acc * (self.vt - x0[0])
+        self.uPred[0, 1] = p_acc * (self.vt - x0[0]) + np.max([-0.2, np.min([np.random.randn() * 0.10, 0.2])])
 
     def apply_control(self, steer, accel, vx):
         vel = vx + accel * self.dt

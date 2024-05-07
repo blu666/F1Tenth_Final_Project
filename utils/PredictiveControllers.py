@@ -202,6 +202,7 @@ class MPC():
             self.b = np.hstack((bxtot, butot))
 
     def buildEqConstr(self):
+        # print("ss", self.Succ_SS_PointSelectedTot
         # Buil matrices for optimization (Convention from Chapter 15.2 Borrelli, Bemporad and Morari MPC book)
         # The equality constraint is: G*z = E * x(t) + L
         Gx = np.eye(self.n * (self.N + 1))
@@ -280,11 +281,13 @@ class MPC():
         if initvals is not None:
             self.osqp.warm_start(x=initvals)
         res = self.osqp.solve()
+        print(res.info.status_val)
         if res.info.status_val == 1:
             self.feasible = 1
         else:
             self.feasible = 0
         self.Solution = res.x
+        # print(self.feasible, self.Solution)
 
 ############## Below LMPC class which is a child of the MPC super class
 class LMPC(MPC):
