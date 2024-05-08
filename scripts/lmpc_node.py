@@ -171,9 +171,9 @@ class ControllerNode(Node):
         print("error", Error)
         lmpcParameters.A = A
         lmpcParameters.B = B
-        lmpcParameters.timeVarying     = True
+        lmpcParameters.timeVarying     = False
         self.lmpc = LMPC(numSS_Points, numSS_it, QterminalSlack, lmpcParameters, self.lmpcpredictiveModel)
-        for i in range(0, 5): # add trajectories for safe set
+        for i in range(0, 4): # add trajectories for safe set
             self.lmpc.addTrajectory(x0_cls[i], u0_cls[i], x0_cl_globs[i])
         return
 
