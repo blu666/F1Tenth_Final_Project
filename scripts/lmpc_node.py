@@ -103,10 +103,11 @@ class ControllerNode(Node):
         TODO 要不要在第二圈继续累加 还是从0开始
         
         """
-        if (self.lap + 1) % 2 == 0:
-            s_state = s_curr + self.Track.length # NEW: ON EVEN LAP, ACCUMULATE S
-        else:
-            s_state = s_curr
+        # if (self.lap + 1) % 2 == 0:
+        #     s_state = s_curr + self.Track.length # NEW: ON EVEN LAP, ACCUMULATE S
+        # else:
+        #     s_state = s_curr
+        s_state = s_curr
         self.xt = np.array([vx, vy, wz, epsi, s_state, ey])
         self.xt_glob = np.array([vx, vy, wz, yaw, X, Y])
         
@@ -126,11 +127,13 @@ class ControllerNode(Node):
         
         u = self.lmpc.get_control()
         self.lmpc.addPoint(self.xt, u) # at iteration j add data to SS^{j-1} 
-        self.get_logger().info("@=> states: xt {}".format(self.xt))
+        # self.get_logger().info("@=> states: xt {}".format(self.xt))
         #==== Check if the car has passed the starting line
         if s_curr - self.s_prev < -self.Track.length / 3.:
             end_time = self.get_clock().now()
-            print("@=>Lapping: Finished running lap {}, timesteps {}, time: {}".format(self.lap, self.time, -(self.starting_timestamp - end_time).nanoseconds * 10e-9))
+            print("@=>>>>>>>>>>>>>>>>")
+            print("@=>Lapping: Finished running lap {}, timesteps {}, time: {}".format(self.lap, self.time, -(self.starting_timestamp - end_time).nanoseconds * 10e-10))
+            print("@=>>>>>>>>>>>>>>>>")
             self.starting_timestamp = end_time
             self.time = 0
             self.lap += 1
@@ -154,6 +157,8 @@ class ControllerNode(Node):
         else:
             self.time += 1
             #==== Record trajectory
+            if self.lap % 2 == 1:
+                self.xt[4] += self.Track.length
             self.x_cl.append(self.xt)
             self.x_cl_glob.append(self.xt_glob)
             self.u_cl.append(u.copy())
@@ -229,7 +234,7 @@ class ControllerNode(Node):
         vel = vx + accel * self.dt
         
         steer = np.clip(steer, -self.car.STEER_MAX, self.car.STEER_MAX)
-        self.get_logger().info(f"accel_cmd: {accel}, vel_cmd: {vel}, steer_cmd: {steer}")
+        # self.get_logger().info("accel_cmd: {:.6f}, vel_cmd: {:.6f}, steer_cmd: {:.6f}".format(accel, vel, steer))
         drive_msg = AckermannDriveStamped()
         drive_msg.header.stamp = self.get_clock().now().to_msg()
         drive_msg.header.frame_id = 'base_link'

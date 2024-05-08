@@ -281,7 +281,7 @@ class MPC():
         if initvals is not None:
             self.osqp.warm_start(x=initvals)
         res = self.osqp.solve()
-        print(res.info.status_val)
+        # print(res.info.status_val)
         if res.info.status_val == 1:
             self.feasible = 1
         else:
