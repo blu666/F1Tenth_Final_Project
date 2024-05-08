@@ -177,7 +177,7 @@ class ControllerNode(Node):
         # return SS_combined.shape
     
     def initialize_lmpc(self, N, n, d, track):
-        x0_cls, u0_cls, x0_cl_globs = load_init_ss('./map/initial_ss.csv', 5)
+        x0_cls, u0_cls, x0_cl_globs = load_init_ss('./map/initial_ss.csv', 5, self.Track.length)
         # ss_points = x0_cls[0]
         # pub_states = np.empty((ss_points.shape[0], 2))
         # for i in range(ss_points.shape[0]):
