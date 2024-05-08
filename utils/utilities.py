@@ -28,7 +28,7 @@ def Regression(x, u, lamb):
     return A, B, Error
 
 
-def load_init_ss(path, length=10):
+def load_init_ss(path, length=10, track_length=0):
     data = np.loadtxt(path, delimiter=',', usecols=(0,1,2,3,4,5,6,7,8,9,10,11,12)) # (N, 13)
     time, lap, vx, vy, wz, epsi, s, ey, yaw, X, Y, u = data[:, 0], data[:, 1], data[:, 2], data[:, 3], data[:, 4], data[:, 5], data[:, 6], data[:, 7], data[:, 8], data[:, 9], data[:, 10], data[:, 11:]
     # print(data.shape)
@@ -41,16 +41,24 @@ def load_init_ss(path, length=10):
     uPID_cls = []
     xPID_cl_globs = []
     prev_start_idx = 0
-    print(lap[prev_start_idx])
+    mid_start_idx = 0
+    # print(lap[prev_start_idx])
     for i in range(1, xPID_cl.shape[0]):
+        if lap[i] - lap[prev_start_idx] == 1 and mid_start_idx == prev_start_idx:
+            mid_start_idx = i
         if lap[i] - lap[prev_start_idx] == 2:
-            print(lap[prev_start_idx], lap[i])
-            xPID_cls.append(xPID_cl[prev_start_idx:i, :])
+            # print(lap[prev_start_idx], lap[i])
+            xPID_2laps = xPID_cl[prev_start_idx:i, :]
+            xPID_2laps[mid_start_idx:, 4] += track_length
+            xPID_cls.append(xPID_2laps)
             uPID_cls.append(uPID_cl[prev_start_idx:i, :])
             xPID_cl_globs.append(xPID_cl_glob[prev_start_idx:i, :])
             prev_start_idx = i
-    print(lap[prev_start_idx], lap[i])
-    xPID_cls.append(xPID_cl[prev_start_idx:i, :])
+            mid_start_idx = i
+    
+    xPID_2laps = xPID_cl[prev_start_idx:i, :]
+    xPID_2laps[mid_start_idx:, 4] += track_length
+    xPID_cls.append(xPID_2laps)
     uPID_cls.append(uPID_cl[prev_start_idx:i, :])
     xPID_cl_globs.append(xPID_cl_glob[prev_start_idx:i, :])
     # if prev_start_idx < xPID_cl.shape[0]:
@@ -60,7 +68,7 @@ def load_init_ss(path, length=10):
     xPID_cls = xPID_cls
     uPID_cls = uPID_cls
     xPID_cl_globs = xPID_cl_globs
-    print(len(xPID_cls), xPID_cls[0].shape)
+    # print(len(xPID_cls), xPID_cls[0].shape)
     return xPID_cls, uPID_cls, xPID_cl_globs
 
 
