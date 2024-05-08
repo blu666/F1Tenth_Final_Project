@@ -30,7 +30,7 @@ from scipy import sparse
 import cvxpy as cp
 from osqp import OSQP
 from utils.PredictiveControllers import LMPC
-
+from rclpy.time import Duration
 
 # class def for RRT
 class ControllerNode(Node):
@@ -56,6 +56,7 @@ class ControllerNode(Node):
         self.u_cl = []              # Control inputs for a closed loop. [delta, a]
         self.first_run = True       # if first run, initialize x_cl and x_cl_glob with initial odom callback
         self.time = 0               # record lapping time steps
+        self.starting_timestamp = None 
         self.lap = 0                # record laps
         self.s_prev = 0             # record previous s
         self.odom: Odometry = None  # Odometry message
@@ -68,11 +69,17 @@ class ControllerNode(Node):
         self.selected_publisher = self.create_publisher(MarkerArray, '/pure_pursuit/selected', 10)
         self.create_timer(self.dt, self.lmpc_run) # RUN LMPC WITH FIXED RATE
         self.get_logger().info("@=>Init: LMPC Node Initialized")
+        
+        
 
     def lmpc_run(self):
         if self.first_run or self.odom is None:
             #===> Not yet initialized
             return
+        if self.starting_timestamp is None:
+            self.starting_timestamp = self.get_clock().now()
+            # end_time = self.get_clock().now()
+            # print("[!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1]", (self.starting_timestamp - end_time).nanoseconds * 10e-9)
         curr_odom = deepcopy(self.odom)
         X, Y = self.odom.pose.pose.position.x, self.odom.pose.pose.position.y
         self.map_to_car_translation = np.array([self.odom.pose.pose.position.x,
@@ -92,7 +99,15 @@ class ControllerNode(Node):
         wz = self.odom.twist.twist.angular.z
         epsi, s_curr, ey, _ = self.Track.get_states(X, Y, yaw)
         
-        self.xt = np.array([vx, vy, wz, epsi, s_curr, ey])
+        """
+        TODO 要不要在第二圈继续累加 还是从0开始
+        
+        """
+        if (self.lap + 1) % 2 == 0:
+            s_state = s_curr + self.Track.length # NEW: ON EVEN LAP, ACCUMULATE S
+        else:
+            s_state = s_curr
+        self.xt = np.array([vx, vy, wz, epsi, s_state, ey])
         self.xt_glob = np.array([vx, vy, wz, yaw, X, Y])
         
         
@@ -114,15 +129,28 @@ class ControllerNode(Node):
         self.get_logger().info("@=> states: xt {}".format(self.xt))
         #==== Check if the car has passed the starting line
         if s_curr - self.s_prev < -self.Track.length / 3.:
-            print("@=>Lapping: Finished running lap {}, time {}".format(self.lap, self.time))
+            end_time = self.get_clock().now()
+            print("@=>Lapping: Finished running lap {}, timesteps {}, time: {}".format(self.lap, self.time, -(self.starting_timestamp - end_time).nanoseconds * 10e-9))
+            self.starting_timestamp = end_time
             self.time = 0
             self.lap += 1
-            #==== Lap finished, add to safe set
-            self.lmpc.addTrajectory(np.array(self.x_cl), np.array(self.u_cl), np.array(self.x_cl_glob))
-            #==== reset recorded trajectory 
-            self.x_cl = [self.xt]
-            self.x_cl_glob = [self.xt_glob]
-            self.u_cl = [u.copy()]
+            
+            if self.lap % 2 == 0:
+                """
+                NEW: IF EVEN LAP finished, add to save set.
+                """
+                #==== Lap finished, add to safe set
+                self.lmpc.addTrajectory(np.array(self.x_cl), np.array(self.u_cl), np.array(self.x_cl_glob))
+                #==== reset recorded trajectory 
+                self.x_cl = [self.xt]
+                self.x_cl_glob = [self.xt_glob]
+                self.u_cl = [u.copy()]
+            else:
+                self.time += 1
+                #==== Record trajectory
+                self.x_cl.append(self.xt)
+                self.x_cl_glob.append(self.xt_glob)
+                self.u_cl.append(u.copy())
         else:
             self.time += 1
             #==== Record trajectory
