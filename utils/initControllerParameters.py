@@ -43,7 +43,7 @@ def initLMPCParams(track, N):
                    [10.0]]) # Max Acceleration
 
    # Safe Set Parameters
-    numSS_it = 4                  # Number of trajectories used at each iteration to build the safe set
+    numSS_it = 5                  # Number of trajectories used at each iteration to build the safe set
     numSS_Points = 12*numSS_it    # Number of points to select from each trajectory to build the safe set
 
     Laps       = 40+numSS_it      # Total LMPC laps

@@ -40,7 +40,7 @@ class ControllerNode(Node):
         self.Track = None
 
         #==== LMPC Params
-        self.N = 20                                    # Horizon length
+        self.N = 14                                    # Horizon length
         self.n = 6; self.d = 2                            # State and Input dimension
         self.dt = 1. / 20.
         vt = 0.8
@@ -88,7 +88,7 @@ class ControllerNode(Node):
         # dpos = normalize_vector(dpos)
         # X += dpos[0] * 0.2
         # Y += dpos[1] * 0.2
-        vx, vy = self.odom.twist.twist.linear.x, self.odom.twist.twist.linear.y + np.random.randn() * 1e-6
+        vx, vy = self.odom.twist.twist.linear.x, self.odom.twist.twist.linear.y# + np.random.randn() * 1e-6
         wz = self.odom.twist.twist.angular.z
         epsi, s_curr, ey, _ = self.Track.get_states(X, Y, yaw)
         
@@ -111,7 +111,7 @@ class ControllerNode(Node):
         
         u = self.lmpc.get_control()
         self.lmpc.addPoint(self.xt, u) # at iteration j add data to SS^{j-1} 
-        self.get_logger().info("@=> states: xt {}".format(self.xt))
+        # self.get_logger().info("@=> states: xt {}".format(self.xt))
         #==== Check if the car has passed the starting line
         if s_curr - self.s_prev < -self.Track.length / 3.:
             print("@=>Lapping: Finished running lap {}, time {}".format(self.lap, self.time))
@@ -162,9 +162,12 @@ class ControllerNode(Node):
         # self.get_logger().info("@=>Init: initial safety set lenghth: {}".format(len(x0_cl)))
         # mpcParam, ltvmpcParam = initMPCParams(n, d, N, vt)
         numSS_it, numSS_Points, _, _, QterminalSlack, lmpcParameters = initLMPCParams(track, N) # TODO: change from map to self.Track
-        self.lmpcpredictiveModel = PredictiveModel(n, d, track, 4)
-        for i in range(0, 4): # add trajectories used for model learning
-            self.lmpcpredictiveModel.addTrajectory(x0_cls[i],u0_cls[i])
+        self.lmpcpredictiveModel = PredictiveModel(n, d, track, 5)
+        for i in range(0, 5): # add trajectories used for model learning
+            self.lmpcpredictiveModel.addTrajectory(x0_cls[i], u0_cls[i])
+        # print(len(x0_cls), x0_cls[0].shape, x0_cls[1].shape, x0_cls[2].shape, x0_cls[3].shape, x0_cls[4].shape)
+        # print("x0_cls", x0_cls)
+        
         x0_cls_all = np.concatenate(x0_cls, axis=0)
         u0_cls_all = np.concatenate(u0_cls, axis=0)
         A, B, Error = Regression(x0_cls_all, u0_cls_all, lamb=1e-6)
@@ -201,7 +204,7 @@ class ControllerNode(Node):
         vel = vx + accel * self.dt
         
         steer = np.clip(steer, -self.car.STEER_MAX, self.car.STEER_MAX)
-        self.get_logger().info(f"accel_cmd: {accel}, vel_cmd: {vel}, steer_cmd: {steer}")
+        self.get_logger().info("accel_cmd: {:.6f}, vel_cmd: {:.6f}, steer_cmd: {:.6f}".format(accel, vel, steer))
         drive_msg = AckermannDriveStamped()
         drive_msg.header.stamp = self.get_clock().now().to_msg()
         drive_msg.header.frame_id = 'base_link'

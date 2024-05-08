@@ -34,17 +34,22 @@ class PredictiveModel():
         self.lapTime = []
 
     def addTrajectory(self, x, u):
-        if self.lapTime == [] or x.shape[0] >= self.lapTime[-1]:
-            self.xStored.append(x)
-            self.uStored.append(u)
-            self.lapTime.append(x.shape[0])
-        else:
-            for i in range(0, len(self.xStored)):
-                if x.shape[0] < self.lapTime[i]:
-                    self.xStored.insert(i, x) 
-                    self.uStored.insert(i, u) 
-                    self.lapTime.insert(i, x.shape[0]) 
-                    break
+        self.xStored.append(x)
+        self.uStored.append(u)
+        self.lapTime.append(x.shape[0])
+
+        ### is ugo maybe trying to sort the laptimes? but why are the slower laps 
+        # if self.lapTime == [] or x.shape[0] >= self.lapTime[-1]:
+        #     self.xStored.append(x)
+        #     self.uStored.append(u)
+        #     self.lapTime.append(x.shape[0])
+        # else:
+        #     for i in range(0, len(self.xStored)):
+        #         if x.shape[0] < self.lapTime[i]:
+        #             self.xStored.insert(i, x) 
+        #             self.uStored.insert(i, u) 
+        #             self.lapTime.insert(i, x.shape[0]) 
+        #             break
 
     def regressionAndLinearization(self, x, u):
         Ai = np.zeros((self.n, self.n))

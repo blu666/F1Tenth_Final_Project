@@ -91,6 +91,7 @@ class MPC():
             self.uLin = self.predictiveModel.uStored[-1][0:self.N,:]
             self.computeLTVdynamics()
         
+        
         self.OldInput = np.zeros((1,2)) # TO DO fix size
 
         # Build matrices for inequality constraints
@@ -144,8 +145,11 @@ class MPC():
         # Estimate system dynamics
         self.A = []; self.B = []; self.C =[]
         for i in range(0, self.N):
+            # print("xLin", i, self.xLin[i].shape, self.xLin[i])
             Ai, Bi, Ci = self.predictiveModel.regressionAndLinearization(self.xLin[i], self.uLin[i])
+            # print("Ai", Ai.shape, Ai)
             self.A.append(Ai); self.B.append(Bi); self.C.append(Ci)
+            # print("A", len(self.A))
 
     def addTerminalComponents(self, x0):
         # TO DO: ....
@@ -334,9 +338,9 @@ class LMPC(MPC):
         self.SSStoredPredTraj    = []
         self.SSStoredPredTraj_it = []
 
-        # self.zt = np.array([0.0, 0.0, 0.0, 0.0, 10.0, 0.0]) ##?
-        self.zt = np.array([0.00000000e+00, -4.00772350e-07,  0.00000000e+00, -3.70007720e-03,
-                                1.0,  3.00746595e-01])
+        self.zt = np.array([0.0, 0.0, 0.0, 0.0, 10.0, 0.0]) ##?
+        # self.zt = np.array([0.00000000e+00, -4.00772350e-07,  0.00000000e+00, -3.70007720e-03,
+        #                         1.0,  3.00746595e-01])
         # Initialize the controller iteration
         self.it      = 0
 
@@ -395,7 +399,7 @@ class LMPC(MPC):
         """add terminal constraint and terminal cost
         Arguments:
             x: initial condition
-        """        
+        """
         # Update zt and xLin is they have crossed the finish line. We want s \in [0, TrackLength]
         if (self.zt[4]-x0[4] > self.predictiveModel.map.length/2):
             self.zt[4] = np.max([self.zt[4] - self.predictiveModel.map.length,0])
