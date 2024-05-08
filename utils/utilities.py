@@ -49,13 +49,18 @@ def load_init_ss(path, length=10):
             uPID_cls.append(uPID_cl[prev_start_idx:i, :])
             xPID_cl_globs.append(xPID_cl_glob[prev_start_idx:i, :])
             prev_start_idx = i
+    print(lap[prev_start_idx], lap[i])
+    xPID_cls.append(xPID_cl[prev_start_idx:i, :])
+    uPID_cls.append(uPID_cl[prev_start_idx:i, :])
+    xPID_cl_globs.append(xPID_cl_glob[prev_start_idx:i, :])
     # if prev_start_idx < xPID_cl.shape[0]:
     #     xPID_cls.append(xPID_cl[prev_start_idx:, :])
     #     uPID_cls.append(uPID_cl[prev_start_idx:, :])
     #     xPID_cl_globs.append(xPID_cl_glob[prev_start_idx:, :])
-    xPID_cls = xPID_cls + xPID_cls
-    uPID_cls = uPID_cls + uPID_cls
-    xPID_cl_globs = xPID_cl_globs + xPID_cl_globs
+    xPID_cls = xPID_cls
+    uPID_cls = uPID_cls
+    xPID_cl_globs = xPID_cl_globs
+    print(len(xPID_cls), xPID_cls[0].shape)
     return xPID_cls, uPID_cls, xPID_cl_globs
 
 

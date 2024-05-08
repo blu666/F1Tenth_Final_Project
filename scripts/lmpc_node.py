@@ -88,7 +88,7 @@ class ControllerNode(Node):
         # dpos = normalize_vector(dpos)
         # X += dpos[0] * 0.2
         # Y += dpos[1] * 0.2
-        vx, vy = self.odom.twist.twist.linear.x, self.odom.twist.twist.linear.y + np.random.randn() * 1e-6
+        vx, vy = self.odom.twist.twist.linear.x, self.odom.twist.twist.linear.y# + np.random.randn() * 1e-6
         wz = self.odom.twist.twist.angular.z
         epsi, s_curr, ey, _ = self.Track.get_states(X, Y, yaw)
         
